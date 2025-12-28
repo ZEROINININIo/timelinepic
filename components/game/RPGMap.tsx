@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language } from '../../types';
-import { Image as ImageIcon, Maximize, X, MessageCircle } from 'lucide-react';
+import { Image as ImageIcon, Maximize, X, MessageCircle, Wifi, AlertTriangle, CheckCircle2, Loader2, HardDrive, FastForward } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 
 interface RPGMapProps {
@@ -17,7 +17,7 @@ const SPEED = 5;
 
 // Gallery Exhibits Definition
 const MAP_OBJECTS: RPGObject[] = [
-    // --- MAIN HALL EXHIBITS (Original) ---
+    // --- MAIN HALL EXHIBITS ---
 
     // Guide NPC - Byaki AI (Main Hall Center-ish)
     { 
@@ -91,7 +91,7 @@ const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_STD', 
         color: 'text-blue-400',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b54d6f1b.png',
+        imageUrl: 'https://free.picui.cn/free/2025/12/28/69514ed472fda.png',
         description: {
             'zh-CN': '零点 // 标准记录影像。',
             'zh-TW': '零點 // 標準記錄影像。',
@@ -116,20 +116,20 @@ const MAP_OBJECTS: RPGObject[] = [
     },
 
     // --- FAN ART SECTOR (Expanded) ---
-
-    // Center - Point Fanart (Existing)
+    
+    // Center Left - Point Main V2 (New)
     { 
-        id: 'exhibit-point-fan', 
-        x: 1450, y: 380, 
+        id: 'exhibit-point-main-v2', 
+        x: 1330, y: 380, 
         width: 40, height: 40, 
         type: 'exhibit', 
-        label: 'POINT_ALT', 
-        color: 'text-amber-400',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b5159351.png',
+        label: 'POINT_V2', 
+        color: 'text-blue-300',
+        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d2121e8.png',
         description: {
-            'zh-CN': '零点 (After Ver.) // 来自观测者的同人创作记录。',
-            'zh-TW': '零點 (After Ver.) // 來自觀測者的同人創作記錄。',
-            'en': 'Point (After Ver.) // Fan creation record.'
+            'zh-CN': '零点 (Main Ver.) // 另一种姿态记录。',
+            'zh-TW': '零點 (Main Ver.) // 另一種姿態記錄。',
+            'en': 'Point (Main Ver.) // Alternative stance record.'
         }
     },
 
@@ -316,9 +316,105 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
   const [viewingExhibit, setViewingExhibit] = useState<RPGObject | null>(null);
   const [direction, setDirection] = useState<'up'|'down'|'left'|'right'>('up');
   
+  // Resource Monitoring State
+  const [isPreloading, setIsPreloading] = useState(true);
+  const [loadedAssets, setLoadedAssets] = useState<Set<string>>(new Set());
+  const [failedAssets, setFailedAssets] = useState<Set<string>>(new Set());
+  
   const requestRef = useRef<number>(0);
   const keysPressed = useRef<Set<string>>(new Set());
   const mapRef = useRef<HTMLDivElement>(null);
+
+  // Compute numbered labels for exhibits
+  // M-xx for Main Hall (x < 1050), F-xx for Fan Art (x >= 1050)
+  const objectsWithIndex = useMemo(() => {
+      let mCount = 0;
+      let fCount = 0;
+      return MAP_OBJECTS.map(obj => {
+          if (obj.type !== 'exhibit') return obj;
+          
+          const isFan = obj.x > 1050;
+          let displayNum = '';
+          if (isFan) {
+              fCount++;
+              displayNum = `F-${String(fCount).padStart(2, '0')}`;
+          } else {
+              mCount++;
+              displayNum = `M-${String(mCount).padStart(2, '0')}`;
+          }
+          
+          return {
+              ...obj,
+              displayNumber: displayNum
+          };
+      });
+  }, []);
+
+  // Calculate total images to load (exhibits + npc)
+  const totalAssets = MAP_OBJECTS.filter(obj => obj.imageUrl).length;
+
+  // Handle Image Load (Can be called from Preloader or lazy load)
+  const handleImageLoad = (id: string) => {
+      setLoadedAssets(prev => {
+          const newSet = new Set(prev);
+          newSet.add(id);
+          return newSet;
+      });
+  };
+
+  // Pre-load Logic
+  useEffect(() => {
+      const assets = MAP_OBJECTS.filter(obj => obj.imageUrl);
+      const total = assets.length;
+      if (total === 0) {
+          setIsPreloading(false);
+          return;
+      }
+
+      // Check if assets were cached in a previous session
+      const isCached = localStorage.getItem('nova_assets_cached') === 'true';
+
+      // De-duplicate URLs for network efficiency
+      const uniqueUrls = Array.from(new Set(assets.map(a => a.imageUrl!)));
+      
+      const promises = uniqueUrls.map(url => {
+          return new Promise<void>((resolve) => {
+              const img = new Image();
+              img.src = url;
+              img.onload = () => {
+                  // Find all objects with this URL and mark them as loaded
+                  const relatedIds = assets.filter(a => a.imageUrl === url).map(a => a.id);
+                  setLoadedAssets(prev => {
+                      const next = new Set(prev);
+                      relatedIds.forEach(id => next.add(id));
+                      return next;
+                  });
+                  resolve();
+              };
+              img.onerror = () => {
+                  const relatedIds = assets.filter(a => a.imageUrl === url).map(a => a.id);
+                  setFailedAssets(prev => {
+                      const next = new Set(prev);
+                      relatedIds.forEach(id => next.add(id));
+                      return next;
+                  });
+                  resolve(); // Resolve even on error to continue
+              };
+          });
+      });
+
+      Promise.all(promises).then(() => {
+          // Mark as cached for future visits
+          localStorage.setItem('nova_assets_cached', 'true');
+          
+          // Add a small delay for smooth transition (reduced if cached)
+          const delay = isCached ? 0 : 800;
+          setTimeout(() => {
+              setIsPreloading(false);
+          }, delay);
+      });
+
+  }, []);
 
   // Input Handling
   useEffect(() => {
@@ -340,10 +436,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
       
       // Objects
       for (const obj of MAP_OBJECTS) {
-          if (obj.type === 'decoration' || obj.type === 'npc') continue; // NPCs can be walked through (or not?) Let's allow walking through for now, or treat as solid? Treat as solid if we want realistic collision. 
-          // Let's treat NPC as solid box for now to avoid walking 'inside' them.
-          // Wait, 'decoration' is skipped. 'exhibit' is collided. 
-          // Let's add NPC collision.
+          if (obj.type === 'decoration' || obj.type === 'npc') continue; 
           if (
               x < obj.x + obj.width &&
               x + PLAYER_SIZE > obj.x &&
@@ -381,7 +474,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
 
   // Game Loop
   const gameLoop = useCallback(() => {
-      if (viewingExhibit) return; // Pause game when viewing
+      if (viewingExhibit || isPreloading) return; // Pause game when viewing or loading
 
       let dx = 0;
       let dy = 0;
@@ -411,7 +504,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit]);
+  }, [viewingExhibit, isPreloading]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -449,6 +542,64 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
       transform: `translate(${window.innerWidth/2 - playerPos.x}px, ${window.innerHeight/2 - playerPos.y}px)`
   };
 
+  // --- Preloader Render ---
+  if (isPreloading) {
+      const percentage = Math.floor(((loadedAssets.size + failedAssets.size) / totalAssets) * 100);
+      
+      return (
+          <div className="w-full h-full bg-[#050505] flex flex-col items-center justify-center font-mono select-none z-[100] relative overflow-hidden">
+              <div className="absolute inset-0 bg-grid-hard opacity-10 animate-[pulse_4s_infinite]"></div>
+              
+              <div className="relative z-10 flex flex-col items-center gap-6 w-full max-w-md px-8">
+                  <div className="relative">
+                      <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full animate-pulse"></div>
+                      <HardDrive size={48} className="text-emerald-500 relative z-10 animate-bounce" />
+                  </div>
+
+                  <div className="w-full space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-ash-light uppercase tracking-widest">
+                          <span className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> DOWNLOADING_ASSETS</span>
+                          <span className="text-emerald-500">{percentage}%</span>
+                      </div>
+                      
+                      <div className="w-full h-2 bg-ash-dark border border-ash-gray/30 overflow-hidden relative">
+                          <div 
+                              className="h-full bg-emerald-500 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(16,185,129,0.8)]"
+                              style={{ width: `${percentage}%` }}
+                          ></div>
+                          {/* Glitch bar */}
+                          <div className="absolute top-0 bottom-0 w-1 bg-white/50 animate-[shimmer_2s_infinite]" style={{ left: `${percentage}%` }}></div>
+                      </div>
+                      
+                      <div className="flex justify-between text-[10px] text-ash-gray/50 font-mono">
+                          <span>FILES: {loadedAssets.size + failedAssets.size} / {totalAssets}</span>
+                          <span>CACHING_TEXTURES...</span>
+                      </div>
+                  </div>
+
+                  {failedAssets.size > 0 && (
+                      <div className="text-[10px] text-red-500 font-bold border border-red-900/50 bg-red-950/20 px-2 py-1 flex items-center gap-2">
+                          <AlertTriangle size={10} />
+                          WARNING: {failedAssets.size} FILES FAILED
+                      </div>
+                  )}
+
+                  <button 
+                      onClick={() => setIsPreloading(false)}
+                      className="mt-8 text-[10px] text-ash-gray/50 hover:text-emerald-400 border border-ash-gray/30 hover:border-emerald-500/50 px-4 py-2 uppercase tracking-widest transition-all bg-black/50 backdrop-blur-sm flex items-center gap-2 group"
+                  >
+                      [SKIP_PRELOAD]
+                      <FastForward size={10} className="group-hover:translate-x-1 transition-transform" />
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  // Current Loading Percentage for HUD
+  const loadPercent = Math.floor((loadedAssets.size / totalAssets) * 100);
+
+  // --- Main Game Render ---
   return (
     <div className="w-full h-full bg-[#050505] relative overflow-hidden font-mono select-none">
         
@@ -476,7 +627,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
                 </div>
 
                 {/* Objects */}
-                {MAP_OBJECTS.map(obj => (
+                {objectsWithIndex.map(obj => (
                     <div
                         key={obj.id}
                         className={`
@@ -495,11 +646,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
                         }}
                     >
                         {/* NPC Rendering */}
-                        {obj.type === 'npc' && (
+                        {obj.type === 'npc' && obj.imageUrl && (
                             <div className="relative w-full h-full flex items-center justify-center">
                                 {/* Avatar Circle */}
                                 <div className="w-full h-full rounded-full overflow-hidden border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)] bg-black animate-[pulse_3s_infinite]">
-                                    <img src={obj.imageUrl} alt="NPC" className="w-full h-full object-cover" />
+                                    <img 
+                                        src={obj.imageUrl} 
+                                        alt="NPC" 
+                                        className="w-full h-full object-cover"
+                                        onLoad={() => handleImageLoad(obj.id)}
+                                    />
                                 </div>
                                 {/* Status Indicator */}
                                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
@@ -511,16 +667,29 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
 
                         {/* Exhibit Rendering */}
                         {obj.type === 'exhibit' && (
-                            <div className="relative w-full h-full flex items-center justify-center overflow-hidden group">
-                                {obj.imageUrl ? (
-                                    <img src={obj.imageUrl} alt="exhibit" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" />
-                                ) : (
-                                    <ImageIcon size={20} className="text-ash-gray" />
-                                )}
-                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] bg-black text-ash-light px-2 border border-ash-gray/50 z-10">
-                                    {obj.label}
+                            <>
+                                <div className="relative w-full h-full flex items-center justify-center overflow-hidden group">
+                                    {obj.imageUrl ? (
+                                        <img 
+                                            src={obj.imageUrl} 
+                                            alt="exhibit" 
+                                            className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" 
+                                            onLoad={() => handleImageLoad(obj.id)}
+                                        />
+                                    ) : (
+                                        <ImageIcon size={20} className="text-ash-gray" />
+                                    )}
+                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] bg-black text-ash-light px-2 border border-ash-gray/50 z-10">
+                                        {obj.label}
+                                    </div>
                                 </div>
-                            </div>
+                                {/* Number Badge */}
+                                {(obj as any).displayNumber && (
+                                    <div className="absolute top-0 right-0 bg-amber-500 text-black text-[8px] font-black px-1.5 py-0.5 z-20 border-l border-b border-black/50 pointer-events-none">
+                                        {(obj as any).displayNumber}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 ))}
@@ -578,13 +747,36 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate }) => {
             </div>
         </div>
 
-        {/* HUD Overlay */}
-        <div className="fixed top-6 left-6 z-50 text-[10px] font-mono text-ash-gray">
-            <div className="border-l-2 border-emerald-500 pl-3">
-                <div className="text-ash-light font-bold text-lg">NOVA_GALLERY</div>
-                <div className="opacity-70">SECTOR_00 // ARCHIVE_HALL</div>
+        {/* HUD Overlay with Resource Monitor (Dynamic State) */}
+        <div className="fixed top-6 left-6 z-50 text-[10px] font-mono text-ash-gray select-none">
+            <div className="border-l-2 border-emerald-500 pl-3 bg-black/60 backdrop-blur-[2px] p-2 shadow-hard-sm border-y border-r border-emerald-500/20">
+                <div className="text-ash-light font-bold text-lg leading-none mb-1">NOVA_GALLERY</div>
+                <div className="opacity-70 mb-2">SECTOR_00 // ARCHIVE_HALL</div>
+                
+                {/* Resource Monitor Status */}
+                <div className="border-t border-dashed border-emerald-500/30 pt-2 flex flex-col gap-1 w-32">
+                    <div className="flex justify-between items-center text-[9px] font-bold">
+                        <span className="flex items-center gap-1 text-emerald-600"><Wifi size={10} /> RES_SYNC</span>
+                        <span className={loadPercent === 100 ? "text-emerald-400" : "text-amber-400 animate-pulse"}>
+                            {loadPercent}%
+                        </span>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="w-full h-1 bg-ash-dark border border-emerald-900/50">
+                        <div 
+                            className="h-full bg-emerald-500 transition-all duration-500 ease-out shadow-[0_0_5px_rgba(16,185,129,0.5)]" 
+                            style={{ width: `${loadPercent}%` }}
+                        ></div>
+                    </div>
+                    
+                    <div className="text-[8px] text-emerald-500/80 flex items-center gap-1 mt-0.5">
+                        {loadPercent === 100 ? <CheckCircle2 size={8} /> : <Loader2 size={8} className="animate-spin" />} 
+                        {loadPercent === 100 ? 'ASSETS_PRELOADED' : 'CACHING...'}
+                    </div>
+                </div>
+
                 {playerPos.x > 1050 && (
-                    <div className="text-amber-500 animate-pulse mt-1">[ FAN_ART_ZONE ]</div>
+                    <div className="text-amber-500 animate-pulse mt-2 pt-2 border-t border-amber-900/30 font-bold">[ FAN_ART_ZONE ]</div>
                 )}
             </div>
         </div>
