@@ -7,6 +7,7 @@ import BackgroundMusic, { unlockGlobalAudio } from './components/BackgroundMusic
 import { Language } from './types';
 
 const STORAGE_KEY = 'nova_gallery_config_v1';
+const NICKNAME_KEY = 'nova_user_nickname';
 
 interface AppConfig {
   language: Language;
@@ -40,11 +41,28 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(initialConfig.language);
   const [bgmPlaying, setBgmPlaying] = useState(initialConfig.bgmPlaying);
   const [bgmVolume, setBgmVolume] = useState(initialConfig.bgmVolume);
+  
+  // Nickname State
+  const [nickname, setNickname] = useState<string | null>(null);
 
-  // Default visuals
+  // Default visuals & Nickname Check
   useEffect(() => {
       document.body.classList.add('crt-enabled'); // Always on for gallery vibe
       document.body.classList.remove('light-theme'); // Force dark mode
+
+      // Check for nickname in URL
+      const params = new URLSearchParams(window.location.search);
+      const urlNickname = params.get('nickname');
+      
+      if (urlNickname) {
+          const decoded = decodeURIComponent(urlNickname);
+          setNickname(decoded);
+          localStorage.setItem(NICKNAME_KEY, decoded);
+      } else {
+          // Load cached nickname
+          const cached = localStorage.getItem(NICKNAME_KEY);
+          if (cached) setNickname(cached);
+      }
   }, []);
 
   // Audio Sources
@@ -104,7 +122,7 @@ const App: React.FC = () => {
       {/* Main Game State */}
       <div className={`fixed inset-0 overflow-hidden bg-black text-ash-light transition-opacity duration-1000 ${appState === 'READY' ? 'opacity-100' : 'opacity-0'}`}>
           {/* Main Game Canvas */}
-          <RPGMap language={language} />
+          <RPGMap language={language} nickname={nickname} />
 
           {/* Floating BGM Only */}
           <div className="fixed top-0 right-0 p-4 z-[100] pointer-events-none">
