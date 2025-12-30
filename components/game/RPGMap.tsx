@@ -178,7 +178,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
           cdCut: 0,
           cdStealth: 0,
           tutorialStep: 0, // Start Tutorial
-          showVictory: false
+          showVictory: false,
+          animation: undefined,
+          animationKey: 0
       });
       keysPressed.current.clear();
   }, []);
@@ -233,7 +235,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
           turn: 'enemy',
           logs: [newLog, ...prev.logs].slice(0, 8),
           cdCut: newCdCut,
-          cdStealth: newCdStealth
+          cdStealth: newCdStealth,
+          animation: action,
+          animationKey: Date.now()
       }) : null);
 
       if (newEnemyHp <= 0) {
@@ -276,7 +280,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               playerHp: newHp,
               playerShield: newShield,
               turn: 'player',
-              logs: [`>> SENTINEL [ATTACK]: ${dmg} DMG${blockedLog}`, ...prev.logs].slice(0, 8)
+              logs: [`>> SENTINEL [ATTACK]: ${dmg} DMG${blockedLog}`, ...prev.logs].slice(0, 8),
+              animation: 'enemy_attack',
+              animationKey: Date.now()
           };
       });
   };

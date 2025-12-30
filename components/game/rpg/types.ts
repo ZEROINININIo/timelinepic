@@ -14,4 +14,7 @@ export interface BattleState {
     // Story & Tutorial
     tutorialStep: number; // -1 means finished
     showVictory: boolean;
+    // Visual Effects
+    animation?: 'attack' | 'heal' | 'cut' | 'stealth' | 'enemy_attack';
+    animationKey?: number;
 }

@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface VirtualJoystickProps {
@@ -9,32 +9,15 @@ interface VirtualJoystickProps {
 
 const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onStop }) => {
   const [activeBtn, setActiveBtn] = useState<string | null>(null);
-  const intervalRef = useRef<number | null>(null);
-  const directionRef = useRef({ dx: 0, dy: 0 });
-
+  
+  // No interval, direct state update
   const startMove = (dx: number, dy: number, btnId: string) => {
     setActiveBtn(btnId);
-    directionRef.current = { dx, dy };
-    
-    // Clear existing interval if any (for safety)
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    // Immediate first move
     onMove(dx, dy);
-
-    // Loop
-    intervalRef.current = window.setInterval(() => {
-        onMove(directionRef.current.dx, directionRef.current.dy);
-    }, 16); // ~60fps
   };
 
   const stopMove = () => {
     setActiveBtn(null);
-    directionRef.current = { dx: 0, dy: 0 };
-    if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-    }
     onStop();
   };
 
@@ -49,10 +32,6 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onStop }) => 
         e.preventDefault();
         e.currentTarget.releasePointerCapture(e.pointerId);
         stopMove();
-    },
-    onPointerLeave: (e: React.PointerEvent) => {
-        // Only stop if this specific button was active
-        if (activeBtn === id) stopMove();
     },
     onPointerCancel: (e: React.PointerEvent) => {
         stopMove();

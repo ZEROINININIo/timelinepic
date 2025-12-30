@@ -45,6 +45,11 @@
               'float-up-slow': 'floatUp 20s linear infinite',
               'float-up-medium': 'floatUp 15s linear infinite',
               'float-up-fast': 'floatUp 10s linear infinite',
+              // New Battle Animations
+              'slash': 'slash 0.4s ease-out forwards',
+              'laser-cut': 'laserCut 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+              'shield-spin': 'shieldSpin 3s linear infinite',
+              'heal-flow': 'healFlow 1.5s linear infinite',
             },
             keyframes: {
               glitch: {
@@ -121,6 +126,27 @@
                 '10%': { opacity: '0.8' },
                 '90%': { opacity: '0.8' },
                 '100%': { transform: 'translateY(-10vh) rotateZ(180deg) scale(1.5)', opacity: '0' }
+              },
+              // Battle Specific
+              slash: {
+                '0%': { strokeDashoffset: '100', opacity: '0' },
+                '10%': { opacity: '1' },
+                '100%': { strokeDashoffset: '0', opacity: '0' }
+              },
+              laserCut: {
+                '0%': { transform: 'scaleX(0)', opacity: '1' },
+                '50%': { transform: 'scaleX(1)', opacity: '1' },
+                '100%': { transform: 'scaleX(1)', opacity: '0' }
+              },
+              shieldSpin: {
+                '0%': { transform: 'rotate(0deg) scale(1)', opacity: '0.8' },
+                '50%': { transform: 'rotate(180deg) scale(1.1)', opacity: '0.4' },
+                '100%': { transform: 'rotate(360deg) scale(1)', opacity: '0.8' }
+              },
+              healFlow: {
+                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '20%': { opacity: '1' },
+                '100%': { transform: 'translateY(-20px)', opacity: '0' }
               }
             }
           }

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BattleState } from './types';
 import { TUTORIAL_STEPS, VICTORY_MSG } from './tutorialData';
 import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2 } from 'lucide-react';
@@ -19,8 +19,22 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
       playerHp, playerMaxHp, playerShield, 
       enemyHp, enemyMaxHp, 
       logs, cdCut, cdStealth,
-      tutorialStep, showVictory
+      tutorialStep, showVictory,
+      animation, animationKey
   } = state;
+
+  const [activeEffect, setActiveEffect] = useState<string | null>(null);
+
+  // Trigger effect when animation state changes
+  useEffect(() => {
+      if (animation) {
+          setActiveEffect(animation);
+          // Effects have different durations
+          const duration = animation === 'shield-spin' ? 2000 : 1000;
+          const timer = setTimeout(() => setActiveEffect(null), duration);
+          return () => clearTimeout(timer);
+      }
+  }, [animation, animationKey]);
 
   const currentTutorial = tutorialStep >= 0 && tutorialStep < TUTORIAL_STEPS.length ? TUTORIAL_STEPS[tutorialStep] : null;
   const highlightBtn = currentTutorial?.highlight;
@@ -35,9 +49,14 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
   );
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-0 md:p-4 font-mono select-none">
+    <div className={`absolute inset-0 z-50 flex items-center justify-center p-0 md:p-4 font-mono select-none ${activeEffect === 'enemy_attack' ? 'animate-shake-violent' : ''}`}>
         {/* Darkened Background */}
-        <div className="absolute inset-0 bg-black/90 backdrop-blur-sm animate-fade-in"></div>
+        <div className={`absolute inset-0 bg-black/90 backdrop-blur-sm animate-fade-in ${activeEffect === 'enemy_attack' ? 'bg-red-900/20' : ''}`}></div>
+
+        {/* Global Damage Flash for Enemy Attack */}
+        {activeEffect === 'enemy_attack' && (
+            <div className="absolute inset-0 bg-red-500/20 z-50 pointer-events-none animate-pulse mix-blend-overlay"></div>
+        )}
 
         <div className="relative w-full max-w-4xl h-full md:h-[600px] border-2 border-red-900/50 bg-ash-black flex flex-col shadow-[0_0_50px_rgba(220,38,38,0.2)] overflow-hidden">
             
@@ -60,7 +79,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                     {/* Enemy Entity (Centered & Stable) */}
                     <div className={`relative z-10 flex flex-col items-center gap-4 w-full max-w-xs transition-opacity duration-300 ${currentTutorial ? 'opacity-20 md:opacity-100' : 'opacity-100'}`}>
                         {/* Enemy Frame (No Rotation, Static) */}
-                        <div className="w-32 h-32 md:w-48 md:h-48 bg-black/80 border-4 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.5)] flex items-center justify-center relative overflow-hidden group">
+                        <div className={`w-32 h-32 md:w-48 md:h-48 bg-black/80 border-4 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.5)] flex items-center justify-center relative overflow-hidden group ${activeEffect === 'attack' ? 'animate-shake-violent' : ''}`}>
                             {/* Inner Glitch Effect */}
                             <div className="absolute inset-0 bg-red-900/20"></div>
                             {/* Corner Decors */}
@@ -70,8 +89,37 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                             <div className="absolute bottom-0 right-0 w-2 h-2 bg-red-600"></div>
                             
                             {/* Icon - Static */}
-                            <Skull size={64} className="text-red-500 md:scale-125" />
+                            <Skull size={64} className={`text-red-500 md:scale-125 transition-all ${activeEffect === 'cut' ? 'opacity-50 blur-sm scale-90' : ''}`} />
                             <div className="absolute inset-2 border border-red-500/30"></div>
+
+                            {/* --- VISUAL EFFECTS ON ENEMY --- */}
+                            
+                            {/* Attack Slash (SVG) */}
+                            {activeEffect === 'attack' && (
+                                <div className="absolute inset-0 flex items-center justify-center z-30">
+                                    <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">
+                                        <path d="M10,90 L90,10" stroke="white" strokeWidth="3" fill="none" className="animate-slash" />
+                                        <path d="M20,100 L100,20" stroke="white" strokeWidth="1" fill="none" className="animate-slash" style={{ animationDelay: '0.05s' }} />
+                                        <path d="M0,80 L80,0" stroke="white" strokeWidth="1" fill="none" className="animate-slash" style={{ animationDelay: '0.05s' }} />
+                                    </svg>
+                                </div>
+                            )}
+
+                            {/* Cut Data Effect (Laser X + Glitch) */}
+                            {activeEffect === 'cut' && (
+                                <div className="absolute inset-0 z-30 flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-red-600/30 mix-blend-color-burn animate-pulse"></div>
+                                    
+                                    {/* Laser Lines */}
+                                    <div className="absolute w-[150%] h-1 bg-red-500 shadow-[0_0_20px_red] rotate-45 animate-laser-cut"></div>
+                                    <div className="absolute w-[150%] h-1 bg-red-500 shadow-[0_0_20px_red] -rotate-45 animate-laser-cut" style={{ animationDelay: '0.1s' }}></div>
+                                    
+                                    {/* Glitch Boxes */}
+                                    <div className="absolute top-1/4 left-1/4 w-8 h-8 bg-red-500 mix-blend-screen animate-ping opacity-50"></div>
+                                    <div className="absolute bottom-1/4 right-1/4 w-12 h-2 bg-white mix-blend-overlay animate-pulse"></div>
+                                </div>
+                            )}
+
                         </div>
 
                         {/* Enemy Status Bar */}
@@ -101,8 +149,48 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                     </div>
 
                     {/* Player Status (Moved Here) */}
-                    <div className="p-3 md:p-4 bg-ash-dark/30 border-b border-ash-dark/50">
-                        <div className="flex justify-between items-end mb-2">
+                    <div className="p-3 md:p-4 bg-ash-dark/30 border-b border-ash-dark/50 relative overflow-hidden">
+                        {/* Heal Effect Overlay - Digital Ascending */}
+                        {activeEffect === 'heal' && (
+                            <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
+                                <div className="absolute inset-0 bg-green-500/10"></div>
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                    <div 
+                                        key={i}
+                                        className="absolute w-full h-[1px] bg-green-400 opacity-60 animate-heal-flow"
+                                        style={{ 
+                                            left: 0, 
+                                            top: `${Math.random() * 100}%`,
+                                            animationDelay: `${Math.random()}s`,
+                                            animationDuration: `${0.5 + Math.random()}s`
+                                        }}
+                                    ></div>
+                                ))}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-green-300 font-bold text-xl animate-float-up-fast drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">
+                                        + REPAIR
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* Stealth Effect Overlay - Holographic Shield */}
+                        {(activeEffect === 'stealth' || playerShield > 0) && (
+                            <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center overflow-hidden">
+                                {/* Only show the big spin animation on activation */}
+                                {activeEffect === 'stealth' && (
+                                    <div className="w-[150%] h-[200%] border-2 border-cyan-400/30 rounded-[40%] animate-shield-spin absolute"></div>
+                                )}
+                                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIyOCI+PHBhdGggZD0iTTAgMGw4IDQgOC00djE0bC04IDQtOC00eiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMjJkM2VlIiBzdHJva2Utb3BhY2l0eT0iMC4yIi8+PC9zdmc+')] opacity-30"></div>
+                                {activeEffect === 'stealth' && (
+                                    <div className="text-cyan-300 font-bold text-lg animate-pulse relative z-20 bg-black/50 px-2 border border-cyan-500/50">
+                                        SHIELD_UP
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-end mb-2 relative z-20">
                             <span className="text-red-500 font-black font-mono text-xs md:text-sm tracking-wider">{playerName}</span>
                             <div className="text-[10px] font-mono text-ash-light">
                                 <span className="text-emerald-400 font-bold">{playerHp}</span> 
@@ -110,7 +198,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                             </div>
                         </div>
                         
-                        <div className="w-full h-3 bg-ash-black border border-ash-gray relative">
+                        <div className="w-full h-3 bg-ash-black border border-ash-gray relative z-20">
                             {/* HP Bar */}
                             <div 
                                 className="h-full bg-emerald-500 transition-all duration-300 ease-out"
@@ -119,13 +207,13 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                             {/* Shield Overlay */}
                             {playerShield > 0 && (
                                 <div 
-                                    className="absolute top-0 left-0 h-full bg-blue-400/60 border-r-2 border-blue-200" 
+                                    className="absolute top-0 left-0 h-full bg-cyan-400/60 border-r-2 border-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.5)]" 
                                     style={{ width: `${Math.min(100, (playerShield / playerMaxHp) * 100)}%` }}
                                 ></div>
                             )}
                         </div>
                         {playerShield > 0 && (
-                            <div className="text-[9px] font-mono text-blue-300 mt-1 flex items-center gap-1">
+                            <div className="text-[9px] font-mono text-cyan-300 mt-1 flex items-center gap-1 relative z-20">
                                 <Shield size={10} /> SHIELD_INTEGRITY: {playerShield}
                             </div>
                         )}
