@@ -299,26 +299,91 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
+    // --- STAR MAP PAVILION BRANCH (Public & Secret Access) ---
+    
+    // NPC: Pyo (Curator)
+    { 
+        id: 'npc-pyo', 
+        x: 80, y: 350, 
+        width: 40, height: 40, 
+        type: 'npc', 
+        label: 'PYO', 
+        color: 'text-indigo-300',
+        imageUrl: 'https://free.picui.cn/free/2026/01/01/69567c58abbc0.png',
+        description: {
+            'zh-CN': '我是星图馆代理馆长普忧。在这里，你可以回到来时的站点，服务是免费的，不用客气。',
+            'zh-TW': '我是星圖館代理館長普憂。在這裡，你可以回到來時的站點，服務是免費的，不用客氣。',
+            'en': 'I am Pyo, acting curator of the Star Map Pavilion. Here you can return to the station you came from. The service is free, please make yourself at home.'
+        }
+    },
+
+    // Link: Main Site
+    { 
+        id: 'link-main', 
+        x: 40, y: 500, 
+        width: 40, height: 40, 
+        type: 'terminal', 
+        label: 'MAIN_NODE', 
+        color: 'text-sky-400',
+        description: {
+            'zh-CN': '【主站传送门】\n\n跳转至: bf.zeroxv.cn\n\n[点击确认]',
+            'zh-TW': '【主站傳送門】\n\n跳轉至: bf.zeroxv.cn\n\n[點擊確認]',
+            'en': '[MAIN SITE PORTAL]\n\nWarp to: bf.zeroxv.cn\n\n[CLICK TO CONFIRM]'
+        }
+    },
+
+    // Link: OST Site
+    { 
+        id: 'link-ost', 
+        x: 120, y: 500, 
+        width: 40, height: 40, 
+        type: 'terminal', 
+        label: 'AUDIO_NODE', 
+        color: 'text-purple-400',
+        description: {
+            'zh-CN': '【OST 传送门】\n\n跳转至: ost.zeroxv.cn\n\n[点击确认]',
+            'zh-TW': '【OST 傳送門】\n\n跳轉至: ost.zeroxv.cn\n\n[點擊確認]',
+            'en': '[OST SITE PORTAL]\n\nWarp to: ost.zeroxv.cn\n\n[CLICK TO CONFIRM]'
+        }
+    },
+
     // --- WALLS ---
 
     // Top and Bottom Outer Boundaries
     { id: 'w_top', x: 200, y: 0, width: 800, height: 50, type: 'wall' }, 
     { id: 'w_bottom', x: 200, y: 750, width: 800, height: 50, type: 'wall' }, 
     
-    // --- MAIN HALL LEFT WALL (Reconstructed) ---
-    // This wall sits at x=200. It visually blocks the player from the secret room.
-    // 1. Top Section (Solid)
+    // --- MAIN HALL LEFT WALL (Reconstructed for Public Access) ---
+    // This wall sits at x=200.
+    
+    // 1. Top Section (Solid - Blocks Tea Room)
     { id: 'w_main_left_top', x: 200, y: 0, width: 50, height: 150, type: 'wall' },
-    // 2. Middle Section (FAKE - Passable)
+    
+    // 2. Middle Section (FAKE - Entrance to Secret Tea Room)
     { id: 'fake_wall_secret', x: 200, y: 150, width: 50, height: 100, type: 'decoration', label: 'FAKE_WALL' },
-    // 3. Bottom Section (Solid)
-    { id: 'w_main_left_bottom', x: 200, y: 250, width: 50, height: 550, type: 'wall' },
+    
+    // 3. Middle-Lower Section (Solid - Separator)
+    { id: 'w_main_left_mid', x: 200, y: 250, width: 50, height: 100, type: 'wall' },
 
-    // --- SECRET ROOM WALLS (Protruding Out) ---
+    // [OPEN GAP here at y=350 to y=450 for Star Map Pavilion Entrance]
+
+    // 4. Bottom Section (Solid)
+    { id: 'w_main_left_lower', x: 200, y: 450, width: 50, height: 350, type: 'wall' },
+
+    // --- LEFT WING (Tea Room + Star Map Pavilion) ---
     // Encloses the area 0 < x < 200
     { id: 'w_secret_top', x: 0, y: 0, width: 200, height: 50, type: 'wall' },
     { id: 'w_secret_left', x: 0, y: 0, width: 50, height: 800, type: 'wall' },
-    { id: 'w_secret_bottom', x: 0, y: 250, width: 200, height: 50, type: 'wall' },
+    
+    // Separator between Tea Room (Hidden) and Star Map (Public)
+    // Wall at y=250. 
+    // Replaced the gap with a FAKE WALL to allow hidden entry but appear solid.
+    { id: 'w_secret_div_1', x: 0, y: 250, width: 70, height: 50, type: 'wall' },
+    { id: 'fake_wall_star_tea', x: 70, y: 250, width: 60, height: 50, type: 'decoration', label: 'FAKE_WALL' },
+    { id: 'w_secret_div_2', x: 130, y: 250, width: 70, height: 50, type: 'wall' },
+
+    // Bottom of Star Map Pavilion
+    { id: 'w_star_bottom', x: 0, y: 600, width: 200, height: 50, type: 'wall' },
 
     // Main Hall Right Wall
     { id: 'w_right_top', x: 950, y: 0, width: 50, height: 350, type: 'wall' },

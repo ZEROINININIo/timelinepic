@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { RPGObject } from '../../../types';
 import { MAP_WIDTH, MAP_HEIGHT } from './constants';
+import { Globe, Music } from 'lucide-react';
 
 interface MapRendererProps {
   objects: RPGObject[];
@@ -71,6 +72,7 @@ const MapRenderer: React.FC<MapRendererProps> = ({ objects, activeObjId }) => {
         {objectsWithIndex.map(obj => {
             const isFakeWall = obj.label === 'FAKE_WALL';
             const isWall = obj.type === 'wall' || isFakeWall;
+            const isTerminal = obj.type === 'terminal';
 
             return (
                 <div
@@ -80,14 +82,15 @@ const MapRenderer: React.FC<MapRendererProps> = ({ objects, activeObjId }) => {
                         ${isWall ? 'bg-ash-black border border-ash-gray/30 shadow-hard' : ''}
                         ${obj.type === 'exhibit' ? 'bg-black/80 border-2 border-ash-light/50 shadow-[0_0_30px_rgba(255,255,255,0.1)]' : ''}
                         ${obj.type === 'npc' ? 'z-20' : ''}
-                        ${activeObjId === obj.id ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse' : ''}
+                        ${activeObjId === obj.id && !isTerminal ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse' : ''}
+                        ${isTerminal ? 'z-10' : ''}
                     `}
                     style={{
                         left: obj.x,
                         top: obj.y,
                         width: obj.width,
                         height: obj.height,
-                        borderRadius: obj.type === 'npc' ? '9999px' : '0',
+                        borderRadius: obj.type === 'npc' || isTerminal ? '9999px' : '0',
                         zIndex: isWall ? 5 : undefined
                     }}
                 >
@@ -115,6 +118,22 @@ const MapRenderer: React.FC<MapRendererProps> = ({ objects, activeObjId }) => {
                                 className="w-full h-full object-cover"
                             />
                             <div className="absolute inset-0 bg-emerald-500/20 animate-pulse"></div>
+                        </div>
+                    )}
+
+                    {/* Terminal Content (New Visuals) */}
+                    {isTerminal && (
+                        <div className="w-full h-full relative flex items-center justify-center">
+                            {/* Floor Base */}
+                            <div className={`absolute inset-0 rounded-full border-2 ${activeObjId === obj.id ? 'border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.6)]' : 'border-sky-900/50'} bg-black/50`}></div>
+                            {/* Inner Ring */}
+                            <div className={`absolute inset-2 rounded-full border border-dashed border-sky-500/50 animate-spin-slow`}></div>
+                            {/* Hologram Icon */}
+                            <div className={`relative z-20 text-sky-400 ${activeObjId === obj.id ? 'animate-bounce text-sky-300' : 'opacity-80'}`}>
+                                {obj.id === 'link-main' ? <Globe size={20} /> : <Music size={20} />}
+                            </div>
+                            {/* Light Beam */}
+                            <div className="absolute bottom-1/2 left-1/2 -translate-x-1/2 w-4 h-12 bg-gradient-to-t from-sky-500/30 to-transparent blur-sm pointer-events-none origin-bottom transform -translate-y-2"></div>
                         </div>
                     )}
                 </div>

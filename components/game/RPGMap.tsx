@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RPGPosition, RPGObject, Language } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -47,6 +47,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   // React State for UI updates only
   const [activeObj, setActiveObj] = useState<RPGObject | null>(null);
   const [viewingExhibit, setViewingExhibit] = useState<RPGObject | null>(null);
+  const [pendingLink, setPendingLink] = useState<{ url: string, title: string } | null>(null); // State for confirmation modal
   const [direction, setDirection] = useState<'up'|'down'|'left'|'right'>('up');
   
   // Battle State
@@ -153,7 +154,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   const checkCollision = useCallback((x: number, y: number) => {
       if (x < 0 || x + PLAYER_SIZE > MAP_WIDTH || y < 0 || y + PLAYER_SIZE > MAP_HEIGHT) return true;
       for (const obj of MAP_OBJECTS) {
-          if (obj.type === 'decoration' || obj.type === 'npc') continue; 
+          if (obj.type === 'decoration' || obj.type === 'npc' || obj.type === 'terminal') continue; 
           if (
               x < obj.x + obj.width &&
               x + PLAYER_SIZE > obj.x &&
@@ -172,7 +173,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
       
       // Check Static Objects
       for (const obj of MAP_OBJECTS) {
-          if (obj.type !== 'exhibit' && obj.type !== 'npc') continue;
+          if (obj.type !== 'exhibit' && obj.type !== 'npc' && obj.type !== 'terminal') continue;
           const cx = obj.x + obj.width / 2;
           const cy = obj.y + obj.height / 2;
           const px = x + PLAYER_SIZE / 2;
@@ -348,7 +349,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
 
   // --- MAIN GAME LOOP ---
   const gameLoop = useCallback(() => {
-      if (viewingExhibit || isPreloading || battleState?.active) {
+      if (viewingExhibit || isPreloading || battleState?.active || pendingLink) {
           requestRef.current = requestAnimationFrame(gameLoop);
           return;
       }
@@ -399,9 +400,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               setActiveObj(nearest);
           }
           
-          // Check for Secret Room Overlay
-          // Room coords: 0 < x < 200, 0 < y < 250
-          // If player is inside this box, hide overlay
+          // Check for Secret Room Overlay (Updated: Only covers Tea Room y < 250)
+          // Star Map Pavilion (y > 250) is now public/visible
           if (teaRoomOverlayRef.current) {
               if (nextX < 200 && nextY < 250) {
                   teaRoomOverlayRef.current.style.opacity = '0';
@@ -456,7 +456,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing]);
+  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing, pendingLink]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -483,18 +483,13 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               // Special Logic for Tea
               if (teaStage < 4) {
                   const dialog = teaDialogues[teaStage];
-                  // Use existing viewer to show dialogue, but inject custom callback on close?
-                  // Or just use the viewer and rely on useEffect to increment stage when closing?
-                  // Better: increment stage NOW, then show the dialog associated with that stage index.
                   setViewingExhibit({
                       ...activeObj,
                       label: 'TEA',
                       description: { 'zh-CN': dialog, 'zh-TW': dialog, 'en': dialog },
-                      // Use TEA image
                       imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png'
                   });
               } else {
-                  // Already following
                   setViewingExhibit({
                       ...activeObj,
                       label: 'TEA',
@@ -502,7 +497,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
                       imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png'
                   });
               }
-          } else if (activeObj.type === 'exhibit' || activeObj.type === 'npc') {
+          } else if (activeObj.id === 'link-main') {
+              setPendingLink({ url: 'https://bf.zeroxv.cn', title: 'MAIN_STATION // 主站' });
+          } else if (activeObj.id === 'link-ost') {
+              setPendingLink({ url: 'https://ost.zeroxv.cn', title: 'AUDIO_ROOM // OST' });
+          } else if (activeObj.type === 'exhibit' || activeObj.type === 'npc' || activeObj.type === 'terminal') {
               setViewingExhibit(activeObj);
           }
       }
@@ -516,17 +515,27 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
       setViewingExhibit(null);
   };
 
+  const handleConfirmLink = () => {
+      if (pendingLink) {
+          window.open(pendingLink.url, '_blank');
+          setPendingLink(null);
+      }
+  };
+
   useEffect(() => {
       const handleKeyPress = (e: KeyboardEvent) => {
           if (e.code === 'Space' || e.code === 'Enter') {
               if (viewingExhibit) handleCloseViewer();
-              else handleInteract();
+              else if (!pendingLink) handleInteract();
           }
-          if (e.code === 'Escape' && viewingExhibit) handleCloseViewer();
+          if (e.code === 'Escape') {
+              if (viewingExhibit) handleCloseViewer();
+              if (pendingLink) setPendingLink(null);
+          }
       };
       window.addEventListener('keydown', handleKeyPress);
       return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [activeObj, viewingExhibit, teaStage]);
+  }, [activeObj, viewingExhibit, teaStage, pendingLink]);
 
   // --- RENDER ---
   if (isPreloading) {
@@ -544,13 +553,13 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
         <div ref={worldRef} className="absolute will-change-transform z-10" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
 
-            {/* Secret Room Overlay (Fog of War) */}
+            {/* Secret Room Overlay (Fog of War) - Reduced Height to only cover Tea Room */}
             <div 
                 ref={teaRoomOverlayRef}
                 className="absolute bg-ash-black z-30 transition-opacity duration-700 ease-in-out border-b-2 border-r-2 border-ash-dark"
                 style={{
                     left: 0, top: 0,
-                    width: 200, height: 250 // Cover the protruding area
+                    width: 200, height: 250 // Only covers the Tea Room
                 }}
             >
                 <div className="absolute inset-0 flex items-center justify-center opacity-20">
@@ -669,14 +678,60 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
         </div>
 
         {/* Interaction Prompt */}
-        {activeObj && !viewingExhibit && !battleState?.active && (
+        {activeObj && !viewingExhibit && !battleState?.active && !pendingLink && (
             <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-bounce">
                 <button 
                     onClick={handleInteract}
-                    className="bg-emerald-600 text-black px-6 py-3 font-bold uppercase tracking-widest border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)]"
+                    className="bg-emerald-600 text-black px-6 py-3 font-bold uppercase tracking-widest border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)] flex items-center gap-2"
                 >
-                    {activeObj.type === 'npc' ? 'TALK' : 'INSPECT'} [SPACE]
+                    {activeObj.type === 'terminal' ? 'LINK' : activeObj.type === 'npc' ? 'TALK' : 'INSPECT'} [SPACE]
                 </button>
+            </div>
+        )}
+
+        {/* External Link Confirmation Modal */}
+        {pendingLink && (
+            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setPendingLink(null)}>
+                <div className="w-full max-w-sm bg-black border-2 border-sky-500 p-6 shadow-[0_0_30px_rgba(56,189,248,0.2)] relative" onClick={e => e.stopPropagation()}>
+                    <div className="absolute top-2 right-2">
+                        <button onClick={() => setPendingLink(null)} className="text-sky-700 hover:text-sky-400 transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
+                    
+                    <div className="flex flex-col items-center text-center gap-4 mb-6">
+                        <div className="w-16 h-16 rounded-full border-2 border-sky-500/50 flex items-center justify-center bg-sky-950/20 animate-pulse">
+                            <ExternalLink size={32} className="text-sky-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black text-sky-400 uppercase tracking-widest mb-1">
+                                {pendingLink.title}
+                            </h2>
+                            <p className="text-xs font-mono text-sky-600/80">
+                                ESTABLISHING_EXTERNAL_CONNECTION...
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-sky-900/10 border border-sky-800/30 p-3 mb-6 text-[10px] font-mono text-sky-300/70 text-center break-all">
+                        TARGET: {pendingLink.url}
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={handleConfirmLink}
+                            className="flex-1 bg-sky-600 hover:bg-sky-500 text-black font-bold py-3 uppercase tracking-wider transition-colors shadow-hard"
+                        >
+                            CONFIRM
+                        </button>
+                        <button 
+                            onClick={() => setPendingLink(null)}
+                            className="flex-1 border border-sky-800 text-sky-600 hover:text-sky-400 hover:border-sky-500 py-3 uppercase tracking-wider transition-colors"
+                        >
+                            CANCEL
+                        </button>
+                    </div>
+                </div>
             </div>
         )}
 
@@ -724,7 +779,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
             </div>
         )}
 
-        {!battleState?.active && !viewingExhibit && !isPreloading && (
+        {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && (
             <VirtualJoystick 
                 onMove={(dx, dy) => {
                     // Simulate key press for loop
