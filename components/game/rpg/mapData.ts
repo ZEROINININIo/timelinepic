@@ -52,26 +52,26 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Top Left - Byaki Avatar
+    // Top Left - Byaki Avatar (Updated with Hint)
     { 
         id: 'exhibit-byaki', 
-        x: 150, y: 100, 
+        x: 280, y: 150, 
         width: 40, height: 40, 
         type: 'exhibit', 
         label: 'BYAKI_TERM', 
         color: 'text-emerald-400',
         imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b509851e.jpg',
         description: {
-            'zh-CN': '白栖的终端头像数据 // 记录于档案建立之初。',
-            'zh-TW': '白栖的終端頭像數據 // 記錄於檔案建立之初。',
-            'en': 'Byaki\'s Terminal Avatar // Recorded at archive inception.'
+            'zh-CN': '白栖的终端头像数据 // 记录于档案建立之初。\n\n> 备注：总觉得左边的这堵墙后面...好像有谁在喝茶的声音？',
+            'zh-TW': '白栖的終端頭像數據 // 記錄於檔案建立之初。\n\n> 備註：總覺得左邊的這堵牆後面...好像有誰在喝茶的聲音？',
+            'en': 'Byaki\'s Terminal Avatar // Recorded at archive inception.\n\n> Note: I swear I can hear someone drinking tea behind the wall to the left...'
         }
     },
 
     // Left Middle - Point Standard
     { 
         id: 'exhibit-point', 
-        x: 100, y: 450, 
+        x: 300, y: 450, 
         width: 40, height: 40, 
         type: 'exhibit', 
         label: 'POINT_STD', 
@@ -100,7 +100,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // --- FAN ART SECTOR (Expanded) ---
+    // --- OFFICIAL COMMUNITY GALLERY (Was Fan Art Sector) ---
     
     // Center Left - Point Main V2
     { 
@@ -134,18 +134,19 @@ export const MAP_OBJECTS: RPGObject[] = [
             'en': 'Zelo & Pyo // A heartwarming daily moment.'
         }
     },
+    // New Exhibit: Fumofumo Zelo (Official)
     { 
-        id: 'exhibit-fumo-zelo', 
+        id: 'exhibit-fumofumo-zelo', 
         x: 1320, y: 180, 
         width: 40, height: 40, 
         type: 'exhibit', 
-        label: 'FUMO_ZELO', 
+        label: 'FUMOFUMO_Z', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/6951403272a00.png',
+        imageUrl: 'https://free.picui.cn/free/2026/01/01/69566fa7cdf8f.jpg',
         description: {
-            'zh-CN': 'fumo泽洛 (After Ver.) // 软乎乎的。',
-            'zh-TW': 'fumo澤洛 (After Ver.) // 軟乎乎的。',
-            'en': 'Fumo Zelo (After Ver.) // Soft and squishy.'
+            'zh-CN': 'Fumofumo 泽洛 // 毛茸茸的可爱。',
+            'zh-TW': 'Fumofumo 澤洛 // 毛茸茸的可愛。',
+            'en': 'Fumofumo Zelo // Fluffy cuteness.'
         }
     },
     { 
@@ -264,29 +265,92 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
+    // --- UNOFFICIAL COMMUNITY GALLERY (New Sector) ---
+    
+    // Moved from Official: Fumo Zelo
+    { 
+        id: 'exhibit-fumo-zelo', 
+        x: 2000, y: 380, 
+        width: 40, height: 40, 
+        type: 'exhibit', 
+        label: 'FUMO_ZELO', 
+        color: 'text-amber-200',
+        imageUrl: 'https://free.picui.cn/free/2025/12/28/6951403272a00.png',
+        description: {
+            'zh-CN': 'fumo泽洛 (After Ver.) // 软乎乎的。',
+            'zh-TW': 'fumo澤洛 (After Ver.) // 軟乎乎的。',
+            'en': 'Fumo Zelo (After Ver.) // Soft and squishy.'
+        }
+    },
+
+    // First Entry: Zeri by mor
+    { 
+        id: 'exhibit-zeri-mor', 
+        x: 2150, y: 380, 
+        width: 40, height: 40, 
+        type: 'exhibit', 
+        label: 'ZERI_MOR', 
+        color: 'text-pink-300',
+        imageUrl: 'https://free.picui.cn/free/2026/01/01/69566c8fdea59.jpg',
+        description: {
+            'zh-CN': '芷漓 (By mor) // 非官方社区图集。',
+            'zh-TW': '芷漓 (By mor) // 非官方社區圖集。',
+            'en': 'Zeri (By mor) // Unofficial Community Gallery.'
+        }
+    },
+
     // --- WALLS ---
 
-    // Main Hall Outer Walls (Top/Bottom)
-    { id: 'w_top', x: 0, y: 0, width: 1000, height: 50, type: 'wall' }, 
-    { id: 'w_bottom', x: 0, y: 750, width: 1000, height: 50, type: 'wall' }, 
-    { id: 'w_left', x: 0, y: 0, width: 50, height: 800, type: 'wall' }, 
+    // Top and Bottom Outer Boundaries
+    { id: 'w_top', x: 200, y: 0, width: 800, height: 50, type: 'wall' }, 
+    { id: 'w_bottom', x: 200, y: 750, width: 800, height: 50, type: 'wall' }, 
     
+    // --- MAIN HALL LEFT WALL (Reconstructed) ---
+    // This wall sits at x=200. It visually blocks the player from the secret room.
+    // 1. Top Section (Solid)
+    { id: 'w_main_left_top', x: 200, y: 0, width: 50, height: 150, type: 'wall' },
+    // 2. Middle Section (FAKE - Passable)
+    { id: 'fake_wall_secret', x: 200, y: 150, width: 50, height: 100, type: 'decoration', label: 'FAKE_WALL' },
+    // 3. Bottom Section (Solid)
+    { id: 'w_main_left_bottom', x: 200, y: 250, width: 50, height: 550, type: 'wall' },
+
+    // --- SECRET ROOM WALLS (Protruding Out) ---
+    // Encloses the area 0 < x < 200
+    { id: 'w_secret_top', x: 0, y: 0, width: 200, height: 50, type: 'wall' },
+    { id: 'w_secret_left', x: 0, y: 0, width: 50, height: 800, type: 'wall' },
+    { id: 'w_secret_bottom', x: 0, y: 250, width: 200, height: 50, type: 'wall' },
+
     // Main Hall Right Wall
     { id: 'w_right_top', x: 950, y: 0, width: 50, height: 350, type: 'wall' },
     { id: 'w_right_bottom', x: 950, y: 450, width: 50, height: 350, type: 'wall' },
 
-    // Corridor Walls
+    // Corridor Walls (Main -> Official)
     { id: 'corr_top', x: 1000, y: 350, width: 150, height: 50, type: 'wall' },
     { id: 'corr_bottom', x: 1000, y: 450, width: 150, height: 50, type: 'wall' },
 
-    // Fan Art Room Walls
+    // Official Community Gallery Walls (Was Fan Art Room)
     { id: 'fan_top', x: 1150, y: 100, width: 600, height: 50, type: 'wall' },
     { id: 'fan_bottom', x: 1150, y: 700, width: 600, height: 50, type: 'wall' },
-    { id: 'fan_right', x: 1750, y: 100, width: 50, height: 650, type: 'wall' },
+    
+    // Right Wall (Split for next corridor)
+    { id: 'fan_right_top', x: 1750, y: 100, width: 50, height: 250, type: 'wall' },
+    { id: 'fan_right_bottom', x: 1750, y: 500, width: 50, height: 250, type: 'wall' },
+    
     { id: 'fan_left_top', x: 1150, y: 100, width: 50, height: 250, type: 'wall' },
     { id: 'fan_left_bottom', x: 1150, y: 500, width: 50, height: 250, type: 'wall' }, 
 
+    // Corridor Walls (Official -> Unofficial)
+    { id: 'corr2_top', x: 1800, y: 350, width: 100, height: 50, type: 'wall' },
+    { id: 'corr2_bottom', x: 1800, y: 450, width: 100, height: 50, type: 'wall' },
+
+    // Unofficial Community Gallery Walls (New Room)
+    { id: 'unoff_top', x: 1900, y: 100, width: 600, height: 50, type: 'wall' },
+    { id: 'unoff_bottom', x: 1900, y: 700, width: 600, height: 50, type: 'wall' },
+    { id: 'unoff_right', x: 2500, y: 100, width: 50, height: 650, type: 'wall' },
+    { id: 'unoff_left_top', x: 1900, y: 100, width: 50, height: 250, type: 'wall' },
+    { id: 'unoff_left_bottom', x: 1900, y: 500, width: 50, height: 250, type: 'wall' }, 
+
     // Pillars
-    { id: 'p1', x: 200, y: 200, width: 50, height: 400, type: 'wall' },
+    { id: 'p1', x: 300, y: 200, width: 50, height: 100, type: 'wall' }, // Shifted p1
     { id: 'p2', x: 750, y: 200, width: 50, height: 400, type: 'wall' }
 ];

@@ -24,6 +24,15 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   const playerElemRef = useRef<HTMLDivElement>(null);
   const hudPosRef = useRef<HTMLDivElement>(null);
   
+  // Secret Room Overlay Ref
+  const teaRoomOverlayRef = useRef<HTMLDivElement>(null);
+  
+  // Tea NPC Refs & State
+  const teaPosRef = useRef<RPGPosition>({ x: 80, y: 150 }); // Adjusted to new secret room pos
+  const teaElemRef = useRef<HTMLDivElement>(null);
+  const [teaStage, setTeaStage] = useState(0); // 0-4 dialogues, >=4 following
+  const isTeaFollowing = teaStage >= 4;
+
   // Enemy Refs
   const enemyPosRef = useRef<RPGPosition>({ x: 1400, y: 300 });
   const enemyElemRef = useRef<HTMLDivElement>(null);
@@ -53,6 +62,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
 
   const playerName = nickname || 'USR_01';
 
+  // Tea Dialogue Data
+  const teaDialogues = [
+      "你好...",
+      "看我干嘛？看图片去啊",
+      "难不成还要我陪你看？",
+      "好吧.."
+  ];
+
   // --- SYSTEM LOG SIMULATION ---
   useEffect(() => {
       const operations = ['LOAD', 'SYNC', 'CACHE', 'EXEC', 'PING'];
@@ -76,7 +93,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   }, []);
 
   // --- ASSET PRELOADING ---
-  const totalAssets = MAP_OBJECTS.filter(obj => obj.imageUrl).length;
+  const totalAssets = MAP_OBJECTS.filter(obj => obj.imageUrl).length + 1; // +1 for TEA
 
   useEffect(() => {
       // Check enemy status
@@ -87,6 +104,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
       }
 
       const assets = MAP_OBJECTS.filter(obj => obj.imageUrl);
+      // Include Tea Image manually since it's dynamic
+      assets.push({ id: 'npc-tea-asset', type: 'npc', x:0, y:0, width:0, height:0, imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png' });
+
       if (assets.length === 0) {
           setIsPreloading(false);
           return;
@@ -149,6 +169,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   const findInteractionTarget = useCallback((x: number, y: number) => {
       let nearest: RPGObject | null = null;
       let minDist = 70;
+      
+      // Check Static Objects
       for (const obj of MAP_OBJECTS) {
           if (obj.type !== 'exhibit' && obj.type !== 'npc') continue;
           const cx = obj.x + obj.width / 2;
@@ -161,6 +183,27 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               nearest = obj;
           }
       }
+
+      // Check Dynamic Tea NPC
+      const tx = teaPosRef.current.x + 20; // 40/2
+      const ty = teaPosRef.current.y + 20;
+      const px = x + PLAYER_SIZE / 2;
+      const py = y + PLAYER_SIZE / 2;
+      const teaDist = Math.sqrt(Math.pow(tx - px, 2) + Math.pow(ty - py, 2));
+      
+      if (teaDist < minDist) {
+          return {
+              id: 'npc-tea',
+              x: teaPosRef.current.x,
+              y: teaPosRef.current.y,
+              width: 40, height: 40,
+              type: 'npc',
+              label: 'TEA',
+              imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png',
+              // description is generated dynamically in handleInteract
+          } as RPGObject;
+      }
+
       return nearest;
   }, []);
 
@@ -355,6 +398,40 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               activeObjRef.current = nearest;
               setActiveObj(nearest);
           }
+          
+          // Check for Secret Room Overlay
+          // Room coords: 0 < x < 200, 0 < y < 250
+          // If player is inside this box, hide overlay
+          if (teaRoomOverlayRef.current) {
+              if (nextX < 200 && nextY < 250) {
+                  teaRoomOverlayRef.current.style.opacity = '0';
+              } else {
+                  teaRoomOverlayRef.current.style.opacity = '1';
+              }
+          }
+      }
+
+      // Tea NPC Follow Logic
+      if (isTeaFollowing) {
+          const px = playerPosRef.current.x;
+          const py = playerPosRef.current.y;
+          const tx = teaPosRef.current.x;
+          const ty = teaPosRef.current.y;
+          
+          // Target position: slightly behind player
+          const distX = px - tx;
+          const distY = py - ty;
+          const distance = Math.sqrt(distX * distX + distY * distY);
+          
+          if (distance > 60) {
+              const moveSpeed = SPEED * 0.95; // Slightly slower
+              teaPosRef.current.x += (distX / distance) * moveSpeed;
+              teaPosRef.current.y += (distY / distance) * moveSpeed;
+              
+              if (teaElemRef.current) {
+                  teaElemRef.current.style.transform = `translate3d(${teaPosRef.current.x}px, ${teaPosRef.current.y}px, 0)`;
+              }
+          }
       }
 
       // Enemy AI
@@ -379,7 +456,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState]);
+  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -389,6 +466,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   // Initial Placement
   useEffect(() => {
       if (playerElemRef.current) playerElemRef.current.style.transform = `translate3d(${playerPosRef.current.x}px, ${playerPosRef.current.y}px, 0)`;
+      if (teaElemRef.current) teaElemRef.current.style.transform = `translate3d(${teaPosRef.current.x}px, ${teaPosRef.current.y}px, 0)`;
       if (worldRef.current) {
           const vx = window.innerWidth/2 - playerPosRef.current.x - PLAYER_SIZE/2;
           const vy = window.innerHeight/2 - playerPosRef.current.y - PLAYER_SIZE/2;
@@ -400,22 +478,55 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
   }, [isPreloading]);
 
   const handleInteract = () => {
-      if (activeObj && (activeObj.type === 'exhibit' || activeObj.type === 'npc')) {
-          setViewingExhibit(activeObj);
+      if (activeObj) {
+          if (activeObj.id === 'npc-tea') {
+              // Special Logic for Tea
+              if (teaStage < 4) {
+                  const dialog = teaDialogues[teaStage];
+                  // Use existing viewer to show dialogue, but inject custom callback on close?
+                  // Or just use the viewer and rely on useEffect to increment stage when closing?
+                  // Better: increment stage NOW, then show the dialog associated with that stage index.
+                  setViewingExhibit({
+                      ...activeObj,
+                      label: 'TEA',
+                      description: { 'zh-CN': dialog, 'zh-TW': dialog, 'en': dialog },
+                      // Use TEA image
+                      imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png'
+                  });
+              } else {
+                  // Already following
+                  setViewingExhibit({
+                      ...activeObj,
+                      label: 'TEA',
+                      description: { 'zh-CN': '...', 'zh-TW': '...', 'en': '...' },
+                      imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png'
+                  });
+              }
+          } else if (activeObj.type === 'exhibit' || activeObj.type === 'npc') {
+              setViewingExhibit(activeObj);
+          }
       }
+  };
+
+  // Close Handler for Viewer to increment Tea Stage
+  const handleCloseViewer = () => {
+      if (viewingExhibit?.id === 'npc-tea' && teaStage < 4) {
+          setTeaStage(prev => prev + 1);
+      }
+      setViewingExhibit(null);
   };
 
   useEffect(() => {
       const handleKeyPress = (e: KeyboardEvent) => {
           if (e.code === 'Space' || e.code === 'Enter') {
-              if (viewingExhibit) setViewingExhibit(null);
+              if (viewingExhibit) handleCloseViewer();
               else handleInteract();
           }
-          if (e.code === 'Escape' && viewingExhibit) setViewingExhibit(null);
+          if (e.code === 'Escape' && viewingExhibit) handleCloseViewer();
       };
       window.addEventListener('keydown', handleKeyPress);
       return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [activeObj, viewingExhibit]);
+  }, [activeObj, viewingExhibit, teaStage]);
 
   // --- RENDER ---
   if (isPreloading) {
@@ -432,6 +543,62 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
         {/* Game World Layer - Higher Z-Index */}
         <div ref={worldRef} className="absolute will-change-transform z-10" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
+
+            {/* Secret Room Overlay (Fog of War) */}
+            <div 
+                ref={teaRoomOverlayRef}
+                className="absolute bg-ash-black z-30 transition-opacity duration-700 ease-in-out border-b-2 border-r-2 border-ash-dark"
+                style={{
+                    left: 0, top: 0,
+                    width: 200, height: 250 // Cover the protruding area
+                }}
+            >
+                <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                    <div className="text-[10px] font-mono text-ash-gray rotate-45">???</div>
+                </div>
+            </div>
+
+            {/* Dynamic NPC: TEA */}
+            <div
+                ref={teaElemRef}
+                className={`
+                    absolute flex items-center justify-center z-20 will-change-transform
+                    ${!isTeaFollowing && activeObj?.id === 'npc-tea' ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse' : ''}
+                `}
+                style={{
+                    width: isTeaFollowing ? PLAYER_SIZE : 40, 
+                    height: isTeaFollowing ? PLAYER_SIZE : 40,
+                    top: 0, 
+                    left: 0,
+                    transition: 'width 0.3s, height 0.3s'
+                }}
+            >
+                {isTeaFollowing ? (
+                    <div className="w-full h-full relative flex items-center justify-center">
+                        {/* Nickname Label for TEA */}
+                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-amber-500 font-black text-[10px] whitespace-nowrap tracking-wider uppercase drop-shadow-[0_2px_0_rgba(0,0,0,1)] bg-black/50 px-1 border border-amber-900/50">
+                            TEA
+                        </div>
+
+                        {/* Star Shape */}
+                        <div className="absolute inset-0 bg-black rounded-full border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
+                        <svg viewBox="0 0 100 100" className="w-full h-full text-amber-400 fill-current relative z-10 p-1 animate-spin-slow">
+                            <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
+                        </svg>
+                        <div className="absolute w-2 h-2 bg-white rounded-full animate-ping z-20"></div>
+                        <div className="absolute w-2 h-2 bg-amber-100 rounded-full z-20"></div>
+                    </div>
+                ) : (
+                    <div className="w-full h-full rounded-full overflow-hidden border-2 border-amber-500/50 relative bg-black">
+                        <img 
+                            src="https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png" 
+                            alt="TEA" 
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-amber-500/10 animate-pulse"></div>
+                    </div>
+                )}
+            </div>
 
             {/* Player: Four-Pointed Star (Nova) - Enhanced Visibility & Positioning Fix */}
             <div 
@@ -527,9 +694,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
 
         {/* Exhibit Viewer Modal */}
         {viewingExhibit && (
-            <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-fade-in" onClick={() => setViewingExhibit(null)}>
+            <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-fade-in" onClick={handleCloseViewer}>
                 <div className="w-full max-w-4xl border-2 border-ash-light bg-ash-black relative flex flex-col md:flex-row shadow-[0_0_50px_rgba(255,255,255,0.1)] overflow-hidden" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => setViewingExhibit(null)} className="absolute top-2 right-2 p-2 text-ash-gray hover:text-white z-50">
+                    <button onClick={handleCloseViewer} className="absolute top-2 right-2 p-2 text-ash-gray hover:text-white z-50">
                         <X size={24} />
                     </button>
                     {viewingExhibit.imageUrl && (

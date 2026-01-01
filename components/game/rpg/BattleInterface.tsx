@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { BattleState } from './types';
 import { TUTORIAL_STEPS, VICTORY_MSG } from './tutorialData';
-import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2, Terminal } from 'lucide-react';
 import { Language } from '../../../types';
 
 interface BattleInterfaceProps {
@@ -24,6 +24,11 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
   } = state;
 
   const [activeEffect, setActiveEffect] = useState<string | null>(null);
+  
+  // Secret Author Channel State
+  const [secretClicks, setSecretClicks] = useState(0);
+  const [showCheatInput, setShowCheatInput] = useState(false);
+  const [cheatCode, setCheatCode] = useState('');
 
   // Trigger effect when animation state changes
   useEffect(() => {
@@ -48,6 +53,25 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
       </div>
   );
 
+  const handleSecretClick = () => {
+      const newCount = secretClicks + 1;
+      setSecretClicks(newCount);
+      if (newCount === 5) {
+          setShowCheatInput(true);
+          setSecretClicks(0);
+      }
+  };
+
+  const handleCheatSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (cheatCode === '5531517') {
+          onVictoryConfirm(); // Instant win/skip
+      } else {
+          setCheatCode('');
+          setShowCheatInput(false);
+      }
+  };
+
   return (
     <div className={`absolute inset-0 z-50 flex items-center justify-center p-0 lg:p-4 font-mono select-none ${activeEffect === 'enemy_attack' ? 'animate-shake-violent' : ''}`}>
         {/* Darkened Background */}
@@ -58,6 +82,36 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
             <div className="absolute inset-0 bg-red-500/20 z-50 pointer-events-none animate-pulse mix-blend-overlay"></div>
         )}
 
+        {/* Hidden Cheat Input Overlay */}
+        {showCheatInput && (
+            <div className="absolute inset-0 z-[100] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setShowCheatInput(false)}>
+                <form 
+                    onSubmit={handleCheatSubmit} 
+                    onClick={e => e.stopPropagation()}
+                    className="flex flex-col gap-3 w-64 border border-ash-gray/30 p-4 bg-ash-black shadow-hard"
+                >
+                    <div className="text-ash-gray font-mono text-[10px] uppercase flex items-center gap-2">
+                        <Terminal size={12} />
+                        <span>AUTHOR_CHANNEL // OVERRIDE</span>
+                    </div>
+                    <input 
+                        type="password" 
+                        value={cheatCode}
+                        onChange={(e) => setCheatCode(e.target.value)}
+                        className="bg-ash-dark border-b border-ash-gray text-ash-light px-2 py-1 font-mono text-xs outline-none focus:border-emerald-500 transition-colors"
+                        placeholder="ENTER_PASSCODE"
+                        autoFocus
+                    />
+                    <button 
+                        type="submit" 
+                        className="w-full bg-ash-light text-ash-black text-xs font-bold py-2 uppercase tracking-widest hover:bg-white transition-colors"
+                    >
+                        EXECUTE
+                    </button>
+                </form>
+            </div>
+        )}
+
         <div className="relative w-full max-w-5xl h-full lg:h-[600px] border-2 border-red-900/50 bg-ash-black flex flex-col shadow-[0_0_50px_rgba(220,38,38,0.2)] overflow-hidden">
             
             {/* Header */}
@@ -66,7 +120,13 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                     <Swords size={16} />
                     <span>COMBAT_MODE // ACTIVE</span>
                 </div>
-                <div className="text-[10px] text-red-400/50 font-mono animate-pulse">THREAT DETECTED</div>
+                {/* Secret Trigger Area */}
+                <div 
+                    onClick={handleSecretClick}
+                    className="text-[10px] text-red-400/50 font-mono animate-pulse cursor-default active:text-red-300 transition-colors select-none"
+                >
+                    THREAT DETECTED
+                </div>
             </div>
 
             {/* Main Content Area - Flex Column on Mobile/Tablet Portrait, Row on Desktop */}
