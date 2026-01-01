@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RPGPosition, RPGObject, Language } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -15,9 +15,10 @@ interface RPGMapProps {
   language: Language;
   onNavigate?: (tab: string) => void;
   nickname: string | null;
+  onOpenGuestbook?: () => void;
 }
 
-const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
+const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenGuestbook }) => {
   // Use Refs for High-Frequency Game Loop Data (Zero Re-renders during movement)
   const playerPosRef = useRef<RPGPosition>({ x: 500, y: 700 });
   const worldRef = useRef<HTMLDivElement>(null);
@@ -501,6 +502,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
               setPendingLink({ url: 'https://bf.zeroxv.cn', title: 'MAIN_STATION // 主站' });
           } else if (activeObj.id === 'link-ost') {
               setPendingLink({ url: 'https://ost.zeroxv.cn', title: 'AUDIO_ROOM // OST' });
+          } else if (activeObj.id === 'terminal-guestbook') {
+              // Trigger App state change
+              if (onOpenGuestbook) onOpenGuestbook();
           } else if (activeObj.type === 'exhibit' || activeObj.type === 'npc' || activeObj.type === 'terminal') {
               setViewingExhibit(activeObj);
           }
@@ -684,7 +688,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname }) => {
                     onClick={handleInteract}
                     className="bg-emerald-600 text-black px-6 py-3 font-bold uppercase tracking-widest border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)] flex items-center gap-2"
                 >
-                    {activeObj.type === 'terminal' ? 'LINK' : activeObj.type === 'npc' ? 'TALK' : 'INSPECT'} [SPACE]
+                    {activeObj.type === 'terminal' ? (activeObj.id === 'terminal-guestbook' ? <MessageSquare size={16} /> : 'LINK') : activeObj.type === 'npc' ? 'TALK' : 'INSPECT'} [SPACE]
                 </button>
             </div>
         )}

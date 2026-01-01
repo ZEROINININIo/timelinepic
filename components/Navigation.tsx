@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Database, Book, Users, Home, GitBranch, Settings, Globe, X, ExternalLink, Headphones, MessageSquare, Map, ArrowRight, Radio, Trash2, AlertTriangle } from 'lucide-react';
-import BackgroundMusic from './BackgroundMusic';
+import BackgroundMusic, { unlockGlobalAudio } from './BackgroundMusic';
 import CRTToggle from './CRTToggle';
 import ThemeToggle from './ThemeToggle';
 import FullscreenToggle from './FullscreenToggle';
@@ -61,6 +61,7 @@ const Navigation: React.FC<NavigationProps> = ({
     { id: 'database', label: t.database, mobileLabel: t.mobileData, icon: Database },
     { id: 'reader', label: t.reader, mobileLabel: t.mobileRead, icon: Book },
     { id: 'sidestories', label: t.sidestories, mobileLabel: t.mobileSide, icon: GitBranch },
+    { id: 'guestbook', label: t.guestbook, mobileLabel: t.mobileGuest, icon: MessageSquare },
   ];
 
   const cycleLanguage = () => {
@@ -143,7 +144,7 @@ const Navigation: React.FC<NavigationProps> = ({
             NOVA<br/>LABS
           </h1>
           <div className="text-[10px] text-ash-gray font-custom-02 bg-ash-dark p-1 inline-block border border-ash-gray">
-            ARCHIVE_SYS // TL.1.17-N
+            ARCHIVE_SYS // TL.1.17-S
           </div>
         </div>
 
@@ -151,7 +152,8 @@ const Navigation: React.FC<NavigationProps> = ({
           {navItems.map((item, index) => {
             const isReader = item.id === 'reader';
             const isSide = item.id === 'sidestories';
-            const isStoryItem = isReader || isSide;
+            const isGuest = item.id === 'guestbook';
+            const isStoryItem = isReader || isSide || isGuest;
             const showSeparator = index === 3;
 
             return (
@@ -176,12 +178,16 @@ const Navigation: React.FC<NavigationProps> = ({
                     ${activeTab === item.id 
                         ? (isSide 
                             ? 'bg-cyan-950/40 text-cyan-400 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]' 
-                            : 'bg-ash-light text-ash-black border-ash-light shadow-hard')
+                            : isGuest 
+                                ? 'bg-emerald-950/40 text-emerald-400 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                : 'bg-ash-light text-ash-black border-ash-light shadow-hard')
                         : (isSide
                             ? 'bg-cyan-950/10 text-cyan-600 border-cyan-900/40 hover:bg-cyan-950/30 hover:text-cyan-400 hover:border-cyan-500'
-                            : isReader 
-                                ? 'bg-ash-light/5 text-ash-light/80 border-ash-light/20 hover:bg-ash-light/10 hover:border-ash-light hover:text-ash-light'
-                                : 'bg-ash-black text-ash-gray border-ash-gray/30 hover:border-ash-light hover:text-ash-light')
+                            : isGuest
+                                ? 'bg-emerald-950/10 text-emerald-600 border-emerald-900/40 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-500'
+                                : isReader 
+                                    ? 'bg-ash-light/5 text-ash-light/80 border-ash-light/20 hover:bg-ash-light/10 hover:border-ash-light hover:text-ash-light'
+                                    : 'bg-ash-black text-ash-gray border-ash-gray/30 hover:border-ash-light hover:text-ash-light')
                     }
                   `}
                 >
@@ -202,7 +208,7 @@ const Navigation: React.FC<NavigationProps> = ({
                   <span className="lg:hidden text-[10px] font-bold tracking-widest z-10 whitespace-nowrap landscape:text-[8px]">{item.mobileLabel}</span>
                   
                   {isStoryItem && (
-                    <div className={`absolute top-1 right-1 lg:top-1/2 lg:-translate-y-1/2 lg:right-4 w-1.5 h-1.5 opacity-50 rounded-full lg:rounded-none lg:w-1 lg:h-8 ${isSide ? 'bg-cyan-500' : 'bg-ash-light'}`}></div>
+                    <div className={`absolute top-1 right-1 lg:top-1/2 lg:-translate-y-1/2 lg:right-4 w-1.5 h-1.5 opacity-50 rounded-full lg:rounded-none lg:w-1 lg:h-8 ${isSide ? 'bg-cyan-500' : isGuest ? 'bg-emerald-500' : 'bg-ash-light'}`}></div>
                   )}
                 </button>
               </React.Fragment>
@@ -235,7 +241,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 <span className="font-black tracking-widest text-sm uppercase">{t.roadmap}</span>
              </div>
              <ArrowRight size={14} className="z-10 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500 to-transparent group-hover:opacity-20 transition-opacity"></div>
+             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.5),transparent)] group-hover:opacity-20 transition-opacity"></div>
           </button>
 
           <button 
@@ -247,7 +253,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 <span className="font-black tracking-widest text-sm">{t.ost}</span>
              </div>
              <ExternalLink size={14} className="z-10 opacity-50 group-hover:opacity-100 transition-opacity" />
-             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-ash-light to-transparent group-hover:opacity-20 transition-opacity"></div>
+             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(228,228,231,0.5),transparent)] group-hover:opacity-20 transition-opacity"></div>
           </button>
 
           <BackgroundMusic 
@@ -297,7 +303,7 @@ const Navigation: React.FC<NavigationProps> = ({
                         <Settings size={16} className="text-ash-light" />
                         <span className="text-xs font-bold text-ash-light font-mono uppercase tracking-wider">{t.config}</span>
                     </div>
-                    <div className="text-[10px] text-ash-gray font-mono">TL.1.17-N</div>
+                    <div className="text-[10px] text-ash-gray font-mono">TL.1.17-S</div>
                 </div>
                 
                 <div className="flex flex-col gap-3 landscape:grid landscape:grid-cols-2">
@@ -418,7 +424,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 <div className="mt-10 pt-6 border-t border-dashed border-ash-gray/30 flex justify-between items-center relative z-10">
                     <div className="text-[10px] font-mono text-ash-gray">
                         SYSTEM_BUILD: 2025.12.30<br/>
-                        ARCHIVE_VER: TL.1.17-N
+                        ARCHIVE_VER: TL.1.17-S
                     </div>
                     <button 
                         onClick={() => setShowDesktopSettings(false)}

@@ -7,12 +7,14 @@ export interface NavigationTranslation {
   database: string;
   reader: string;
   sidestories: string;
+  guestbook: string;
   config: string;
   mobileHome: string;
   mobileChars: string;
   mobileData: string;
   mobileRead: string;
   mobileSide: string;
+  mobileGuest: string;
   settingsTitle: string;
   ost: string;
   roadmap: string;
@@ -47,12 +49,14 @@ export const navigationData: Record<Language, NavigationTranslation> = {
     database: '数据资料',
     reader: '阅读终端',
     sidestories: '支线档案',
+    guestbook: '留言板',
     config: '系统设置',
     mobileHome: '主页',
     mobileChars: '人员',
     mobileData: '数据',
     mobileRead: '阅读',
     mobileSide: '支线',
+    mobileGuest: '留言',
     settingsTitle: '系统配置面板',
     ost: 'OST 鉴赏室',
     roadmap: '更新展望',
@@ -75,12 +79,14 @@ export const navigationData: Record<Language, NavigationTranslation> = {
     database: '數據資料',
     reader: '閱讀終端',
     sidestories: '支線檔案',
+    guestbook: '留言板',
     config: '系統設置',
     mobileHome: '主頁',
     mobileChars: '人員',
     mobileData: '數據',
     mobileRead: '閱讀',
     mobileSide: '支線',
+    mobileGuest: '留言',
     settingsTitle: '系統配置面板',
     ost: 'OST 鑒賞室',
     roadmap: '更新展望',
@@ -103,12 +109,14 @@ export const navigationData: Record<Language, NavigationTranslation> = {
     database: 'DATA_BANK',
     reader: 'READ_MODE',
     sidestories: 'FRAGMENTS',
+    guestbook: 'GUESTBOOK',
     config: 'SYS_CONFIG',
     mobileHome: 'ROOT',
     mobileChars: 'TEAM',
     mobileData: 'DATA',
     mobileRead: 'READ',
     mobileSide: 'SIDE',
+    mobileGuest: 'GUEST',
     settingsTitle: 'SYSTEM CONFIGURATION',
     ost: 'MUSIC ROOM',
     roadmap: 'ROADMAP',

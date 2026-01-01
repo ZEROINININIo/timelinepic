@@ -4,7 +4,9 @@ import RPGMap from './components/game/RPGMap';
 import GalleryEntry from './components/GalleryEntry';
 import CustomCursor from './components/CustomCursor';
 import BackgroundMusic, { unlockGlobalAudio } from './components/BackgroundMusic';
+import GuestbookPage from './pages/GuestbookPage';
 import { Language } from './types';
+import { MessageSquare, ArrowLeft } from 'lucide-react';
 
 const STORAGE_KEY = 'nova_gallery_config_v1';
 const NICKNAME_KEY = 'nova_user_nickname';
@@ -41,6 +43,9 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(initialConfig.language);
   const [bgmPlaying, setBgmPlaying] = useState(initialConfig.bgmPlaying);
   const [bgmVolume, setBgmVolume] = useState(initialConfig.bgmVolume);
+  
+  // View State: 'map' or 'guestbook'
+  const [activeView, setActiveView] = useState<'map' | 'guestbook'>('map');
   
   // Nickname State
   const [nickname, setNickname] = useState<string | null>(null);
@@ -111,6 +116,15 @@ const App: React.FC = () => {
     setAppState('READY');
   };
 
+  const toggleGuestbook = () => {
+      setActiveView(prev => prev === 'map' ? 'guestbook' : 'map');
+  };
+
+  const handleNicknameChange = (newNick: string) => {
+      setNickname(newNick);
+      localStorage.setItem(NICKNAME_KEY, newNick);
+  };
+
   return (
     <>
       <CustomCursor />
@@ -121,14 +135,46 @@ const App: React.FC = () => {
 
       {/* Main Game State */}
       <div className={`fixed inset-0 overflow-hidden bg-black text-ash-light transition-opacity duration-1000 ${appState === 'READY' ? 'opacity-100' : 'opacity-0'}`}>
-          {/* Main Game Canvas */}
-          <RPGMap language={language} nickname={nickname} />
+          
+          {activeView === 'map' ? (
+              <RPGMap 
+                language={language} 
+                nickname={nickname} 
+                onOpenGuestbook={() => setActiveView('guestbook')}
+              />
+          ) : (
+              <GuestbookPage 
+                language={language} 
+                isLightTheme={false} 
+                nickname={nickname}
+                onBack={() => setActiveView('map')}
+                onNicknameChange={handleNicknameChange}
+              />
+          )}
 
-          {/* Floating BGM Only */}
-          <div className="fixed top-0 right-0 p-4 z-[100] pointer-events-none">
+          {/* Floating Controls Overlay (Top Right) */}
+          <div className="fixed top-0 right-0 p-4 z-[100] pointer-events-none flex flex-col gap-2 items-end">
+              {/* Guestbook Toggle Button */}
+              <div className="pointer-events-auto">
+                  <button 
+                    onClick={toggleGuestbook}
+                    className={`flex items-center gap-2 px-3 py-3 border-2 shadow-hard transition-all ${
+                        activeView === 'guestbook' 
+                        ? 'bg-ash-black text-ash-light border-ash-gray hover:border-ash-light' 
+                        : 'bg-emerald-600 text-white border-emerald-400 hover:bg-emerald-500'
+                    }`}
+                  >
+                    {activeView === 'guestbook' ? <ArrowLeft size={16} /> : <MessageSquare size={16} />}
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest hidden md:inline">
+                        {activeView === 'guestbook' ? 'RETURN' : 'GUESTBOOK'}
+                    </span>
+                  </button>
+              </div>
+
+              {/* BGM Controller */}
               <div className="pointer-events-auto">
                   <BackgroundMusic 
-                      floating
+                      floating={false} // Use standard mode layout but position it here
                       isPlaying={bgmPlaying && appState === 'READY'} 
                       onToggle={() => setBgmPlaying(!bgmPlaying)}
                       volume={bgmVolume}

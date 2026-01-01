@@ -158,3 +158,13 @@ export interface RPGObject {
   imageUrl?: string;
   description?: Record<Language, string>;
 }
+
+// --- Guestbook Types ---
+export interface Message {
+  id: string;
+  sender: string;
+  content: string;
+  timestamp: number;
+  isSystem?: boolean;
+  isAdmin?: boolean;
+}

@@ -118,6 +118,8 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
+    // [DELETED] terminal-guestbook was here
+
     // -- Top Row --
 
     { 
