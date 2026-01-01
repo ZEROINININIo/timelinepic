@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, Language } from '../types';
-import { MessageSquare, Send, Radio, Wifi, Database, User, ShieldAlert, Cpu, Terminal, CloudOff, Globe, Server, Loader2, ArrowLeft, Trash2, Lock, Key, Eye, Radar, Music, Activity } from 'lucide-react';
+import { MessageSquare, Send, Radio, Wifi, Database, User, ShieldAlert, Cpu, Terminal, CloudOff, Globe, Server, Loader2, ArrowLeft, Trash2, Lock, Key, Eye, Radar, Music, Activity, X } from 'lucide-react';
 import Reveal from '../components/Reveal';
 import MaskedText from '../components/MaskedText';
 import VoidRadar from '../components/VoidRadar';
@@ -34,6 +34,9 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
   
   // View Mode: 'list' or 'radar'
   const [viewMode, setViewMode] = useState<'list' | 'radar'>('list');
+  
+  // UI State
+  const [viewingMsg, setViewingMsg] = useState<Message | null>(null);
   
   // Network States
   const [isConnected, setIsConnected] = useState(false);
@@ -204,6 +207,7 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
           
           if (res.ok) {
               await loadMessages(true);
+              setViewingMsg(null);
           } else {
               alert("Delete failed. Check password.");
           }
@@ -315,6 +319,46 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
                             AUTH
                         </button>
                     </form>
+                </div>
+            </div>
+        )}
+
+        {/* Message Detail Modal */}
+        {viewingMsg && (
+            <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingMsg(null)}>
+                <div 
+                    className={`w-full max-w-md border-2 p-6 shadow-2xl relative ${isLightTheme ? 'bg-white border-zinc-400 text-zinc-900' : 'bg-ash-black border-emerald-500 text-ash-light'}`}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button onClick={() => setViewingMsg(null)} className="absolute top-2 right-2 p-2 opacity-50 hover:opacity-100">
+                        <X size={20} />
+                    </button>
+
+                    <div className="flex items-center gap-3 mb-4 border-b border-dashed pb-2 border-current/30">
+                        <div className={`p-2 rounded-full border ${isLightTheme ? 'bg-zinc-100' : 'bg-emerald-950/30 border-emerald-500/50'}`}>
+                            {viewingMsg.isAdmin ? <Cpu size={24} /> : viewingMsg.isSystem ? <ShieldAlert size={24} /> : <User size={24} />}
+                        </div>
+                        <div>
+                            <div className="font-bold text-lg uppercase">{viewingMsg.sender}</div>
+                            <div className="text-[10px] font-mono opacity-60">{formatTime(viewingMsg.timestamp)}</div>
+                        </div>
+                        {adminMode && (
+                            <button 
+                                onClick={() => handleDelete(viewingMsg.id)} 
+                                className="ml-auto text-red-500 border border-red-500 px-2 py-1 text-[10px] hover:bg-red-500 hover:text-white"
+                            >
+                                DELETE
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="text-sm md:text-base leading-relaxed break-words min-h-[80px]">
+                        {renderMessageContent(viewingMsg.content, isLightTheme ? 'text-zinc-800' : 'text-ash-light')}
+                    </div>
+
+                    <div className="mt-6 text-[10px] font-mono opacity-40 text-center uppercase">
+                        Message_ID: {viewingMsg.id}
+                    </div>
                 </div>
             </div>
         )}
@@ -453,10 +497,7 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
             {viewMode === 'radar' && (
                 <VoidRadar 
                     messages={messages} 
-                    onSelectMessage={(msg) => {
-                        // Switch to list and highlight maybe, or just alert for now simple interaction
-                        alert(`${msg.sender}:\n${msg.content.replace(/\[\[.*?::|\]\]/g, '')}`);
-                    }}
+                    onSelectMessage={setViewingMsg}
                     isLightTheme={isLightTheme}
                 />
             )}
