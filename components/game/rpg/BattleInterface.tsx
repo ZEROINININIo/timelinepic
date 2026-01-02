@@ -12,9 +12,10 @@ interface BattleInterfaceProps {
   onVictoryConfirm: () => void;
   language: Language;
   nickname?: string;
+  enemyName?: string; // Optional override
 }
 
-const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTutorialNext, onVictoryConfirm, language, nickname }) => {
+const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTutorialNext, onVictoryConfirm, language, nickname, enemyName }) => {
   const { 
       playerHp, playerMaxHp, playerShield, 
       enemyHp, enemyMaxHp, 
@@ -44,6 +45,8 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
   const currentTutorial = tutorialStep >= 0 && tutorialStep < TUTORIAL_STEPS.length ? TUTORIAL_STEPS[tutorialStep] : null;
   const highlightBtn = currentTutorial?.highlight;
   const playerName = nickname || 'PLAYER_UNIT';
+  const targetName = enemyName || 'SENTINEL_X';
+  const isPvP = !!enemyName;
 
   // Render Byaki Avatar
   const ByakiAvatar = () => (
@@ -118,7 +121,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
             <div className="h-12 border-b border-red-900/30 flex items-center justify-between px-4 bg-red-950/20 shrink-0 relative z-20">
                 <div className="flex items-center gap-2 text-red-500 font-bold font-mono text-xs lg:text-sm">
                     <Swords size={16} />
-                    <span>COMBAT_MODE // ACTIVE</span>
+                    <span>COMBAT_MODE // {isPvP ? 'DUEL' : 'ACTIVE'}</span>
                 </div>
                 {/* Secret Trigger Area */}
                 <div 
@@ -149,7 +152,13 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                             <div className="absolute bottom-0 right-0 w-2 h-2 bg-red-600"></div>
                             
                             {/* Icon - Static */}
-                            <Skull size={64} className={`text-red-500 lg:scale-125 transition-all ${activeEffect === 'cut' ? 'opacity-50 blur-sm scale-90' : ''}`} />
+                            {isPvP ? (
+                                <div className="text-red-500 font-mono font-black text-6xl lg:text-8xl select-none animate-[pulse_0.2s_infinite]">
+                                    {targetName.substring(0, 1)}
+                                </div>
+                            ) : (
+                                <Skull size={64} className={`text-red-500 lg:scale-125 transition-all ${activeEffect === 'cut' ? 'opacity-50 blur-sm scale-90' : ''}`} />
+                            )}
                             <div className="absolute inset-2 border border-red-500/30"></div>
 
                             {/* --- VISUAL EFFECTS ON ENEMY --- */}
@@ -182,7 +191,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                         {/* Enemy Status Bar */}
                         <div className="w-full bg-black border border-red-900 relative p-1 shadow-hard">
                             <div className="flex justify-between text-[10px] font-mono text-red-500 mb-1 font-bold tracking-widest px-1">
-                                <span>SENTINEL_X</span>
+                                <span>{targetName}</span>
                                 <span>{enemyHp} / {enemyMaxHp}</span>
                             </div>
                             <div className="h-3 w-full bg-red-950/50 border border-red-900/50">

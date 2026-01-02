@@ -209,9 +209,9 @@ const InitialSetup: React.FC<InitialSetupProps> = ({
                 </div>
             )}
 
-            {/* Updated version to TL.1.17-U */}
+            {/* Updated version to TL.1.19-B */}
             <div className="absolute bottom-2 right-2 text-[8px] md:text-[10px] text-amber-900 font-mono">
-                TL.1.17-U
+                TL.1.19-B
             </div>
         </div>
     </div>
