@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Message, Language } from '../types';
-import { MessageSquare, Send, Radio, Wifi, Database, User, ShieldAlert, Cpu, Terminal, CloudOff, Globe, Server, Loader2, ArrowLeft, Trash2, Lock, Key, Eye, Radar, Music, Activity, X } from 'lucide-react';
+import { MessageSquare, Send, Radio, Wifi, Database, User, ShieldAlert, Cpu, Terminal, CloudOff, Globe, Server, Loader2, ArrowLeft, Trash2, Lock, Key, Eye, Radar, Music, Activity, X, Crown } from 'lucide-react';
 import Reveal from '../components/Reveal';
 import MaskedText from '../components/MaskedText';
 import VoidRadar from '../components/VoidRadar';
@@ -150,6 +150,8 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
                   finalContent = `[[SECRET::${payload}]]`;
               } else if (cmd === 'log') {
                   finalContent = `[[LOG::${payload}]]`;
+              } else if (cmd === 'root') {
+                  finalContent = `[[ROOT::${payload}]]`;
               }
           }
       }
@@ -161,9 +163,12 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
           timestamp: Date.now()
       };
 
-      if (isConnected) {
-          setIsSending(true);
-          try {
+      setIsSending(true);
+
+      // Attempt to send via API first, fallback to local immediately if fails
+      try {
+          // If we THINK we are connected, try POST
+          if (isConnected) {
               const res = await fetch(API_URL, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -173,21 +178,23 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
               if (res.ok) {
                   await loadMessages(true);
                   setInputText('');
-                  setCooldown(5); // 5 Seconds cooldown
+                  setCooldown(5);
+                  return; // Success exit
               } else if (res.status === 429) {
-                  alert("发送太快了，请稍作休息！(Rate Limited)");
-                  setCooldown(10);
-              } else {
-                  alert("Failed to send message to server.");
+                  console.warn("Server Rate Limit hit. Switching to offline fallback.");
+                  throw new Error("Rate Limited"); // Throw to trigger catch block
               }
-          } catch (e) {
-              alert("Connection lost. Message not sent.");
-              setIsConnected(false);
-          } finally {
-              setIsSending(false);
+              // If not OK, throw to catch block for fallback
+              throw new Error("Server rejected message");
+          } else {
+              // Not connected initially, throw to catch
+              throw new Error("Offline mode");
           }
-      } else {
-          // Offline Mode Submit
+      } catch (e) {
+          // Fallback Logic
+          console.warn("API Submit failed, falling back to local storage.", e);
+          setIsConnected(false);
+          
           const updated = [...messages, newMsgObj];
           // Ensure sort logic persists even in offline additions just in case
           updated.sort((a, b) => a.timestamp - b.timestamp);
@@ -195,6 +202,8 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
           localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
           setInputText('');
           setCooldown(2);
+      } finally {
+          setIsSending(false);
       }
   };
 
@@ -255,7 +264,15 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
   };
 
   const formatTime = (ts: number) => {
-      return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const date = new Date(ts);
+      // Format: YYYY-MM-DD HH:mm
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day} ${hour}:${minute}`;
   };
 
   // Content Renderer for Protocol Messages
@@ -289,6 +306,18 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
               <span className="text-gray-500 font-mono text-xs block bg-black/10 p-1 border-l-2 border-gray-500">
                   {content.slice(7, -2)}
               </span>
+          );
+      }
+      if (content.startsWith('[[ROOT::') && content.endsWith(']]')) {
+          return (
+              <div className="flex flex-col gap-2 items-center text-center w-full">
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 border-b border-amber-500/30 pb-1 mb-1">
+                      <Crown size={12} className="animate-pulse" /> WORLD_CREATOR
+                  </div>
+                  <span className="font-serif italic text-lg md:text-xl text-amber-200/90 leading-relaxed drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]">
+                      {content.slice(8, -2)}
+                  </span>
+              </div>
           );
       }
       return <span className={textClass}>{content}</span>;
@@ -433,11 +462,15 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
                         const isMe = msg.sender === userNick;
                         const isSystem = msg.isSystem;
                         const isAdmin = msg.isAdmin;
+                        const isRoot = msg.content.startsWith('[[ROOT::');
 
                         let bubbleClass = "";
                         let textClass = "";
                         
-                        if (isSystem) {
+                        if (isRoot) {
+                            bubbleClass = `w-full max-w-[90%] mx-auto border-2 border-amber-500/50 bg-amber-950/40 shadow-[0_0_20px_rgba(245,158,11,0.2)] mt-6 mb-6`;
+                            textClass = "text-amber-200";
+                        } else if (isSystem) {
                             bubbleClass = "w-full text-center my-4 opacity-70";
                             textClass = "text-[10px] md:text-xs bg-red-900/20 text-red-400 border border-red-900/50 px-3 py-1 inline-block";
                         } else if (isAdmin) {
@@ -475,23 +508,34 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
                                         </button>
                                     )}
 
-                                    <div className="flex justify-between items-start mb-1 text-[10px] opacity-70 font-bold uppercase tracking-wider border-b border-dashed border-current/20 pb-1">
-                                        <span className="flex items-center gap-1">
-                                            {isAdmin ? <Cpu size={10} /> : <User size={10} />}
-                                            {msg.sender}
-                                            {/* Show IP if in Admin Mode and available */}
-                                            {adminMode && (msg as any).ip && (
-                                                <span className="ml-2 opacity-50 font-mono">
-                                                    [{(msg as any).ip}]
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span>{formatTime(msg.timestamp)}</span>
-                                    </div>
+                                    {!isRoot && (
+                                        <div className="flex justify-between items-start mb-1 text-[10px] opacity-70 font-bold uppercase tracking-wider border-b border-dashed border-current/20 pb-1">
+                                            <span className="flex items-center gap-1">
+                                                {isAdmin ? <Cpu size={10} /> : <User size={10} />}
+                                                {msg.sender}
+                                                {/* Show IP if in Admin Mode and available */}
+                                                {adminMode && (msg as any).ip && (
+                                                    <span className="ml-2 opacity-50 font-mono">
+                                                        [{(msg as any).ip}]
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span>{formatTime(msg.timestamp)}</span>
+                                        </div>
+                                    )}
+                                    
                                     <div className={`text-sm md:text-base leading-relaxed break-words ${textClass}`}>
                                         {renderMessageContent(msg.content, textClass)}
                                     </div>
-                                    {isAdmin && <div className="absolute -right-1 -top-1 w-2 h-2 bg-emerald-500 animate-pulse"></div>}
+                                    {isAdmin && !isRoot && <div className="absolute -right-1 -top-1 w-2 h-2 bg-emerald-500 animate-pulse"></div>}
+                                    {isRoot && (
+                                        <>
+                                            <div className="absolute top-0 left-0 w-2 h-2 bg-amber-500"></div>
+                                            <div className="absolute top-0 right-0 w-2 h-2 bg-amber-500"></div>
+                                            <div className="absolute bottom-0 left-0 w-2 h-2 bg-amber-500"></div>
+                                            <div className="absolute bottom-0 right-0 w-2 h-2 bg-amber-500"></div>
+                                        </>
+                                    )}
                                 </div>
                             </Reveal>
                         );

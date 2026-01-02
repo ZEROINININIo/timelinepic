@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban, Crown } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -77,7 +77,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [pvpTarget, setPvpTarget] = useState<RemotePlayer | null>(null);
   const [localSuffix, setLocalSuffix] = useState<string>('');
   
-  // Ignore list for rejected invites (temporary)
+  // Ignore list for rejected invites OR recent opponents (to prevent loop)
   const ignoredInvitesRef = useRef<Set<string>>(new Set());
 
   // Chat State
@@ -129,7 +129,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (myChatMsg) {
           const timer = setTimeout(() => {
               // Only clear visible text bubbles locally. Protocol messages (starts with [[) are cleared by next heartbeat implicitly or action logic.
-              if (!myChatMsg.text.startsWith('[[')) {
+              // EXCEPTION: ROOT messages are visible chat, so they should expire.
+              if (!myChatMsg.text.startsWith('[[') || myChatMsg.text.startsWith('[[ROOT::')) {
                   setMyChatMsg(null);
               }
           }, MESSAGE_LIFETIME);
@@ -186,7 +187,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           const myId = sessionIdRef.current;
 
           // 1. Check for Invites (Receiver)
-          // Ensure we don't process invites from ignored IDs (rejected recently)
+          // Ensure we don't process invites from ignored IDs (rejected recently OR JUST FOUGHT)
           const invite = processedOtherPlayers.find(p => p.msg === `[[DUEL_REQ::${myId}]]`);
           if (invite && !battleState?.active && !pvpInvite && !ignoredInvitesRef.current.has(invite.id)) {
               setPvpInvite(invite);
@@ -194,13 +195,13 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
           // 2. Check for Accept (Sender)
           const accept = processedOtherPlayers.find(p => p.msg === `[[DUEL_ACC::${myId}]]`);
-          if (accept && !battleState?.active) {
-              startPvPBattle(accept);
+          if (accept && !battleState?.active && !ignoredInvitesRef.current.has(accept.id)) {
+              // Sender receives Accept -> Sender goes SECOND (turn: enemy)
+              startPvPBattle(accept, false); 
               setMyChatMsg(null); // Clear my invite
           }
 
-          // 3. Check for Reject (Sender) -> NEW
-          // If I am inviting X, and X sends DUEL_REJ::MyID, clear my request
+          // 3. Check for Reject (Sender)
           const reject = processedOtherPlayers.find(p => p.msg === `[[DUEL_REJ::${myId}]]`);
           if (reject && myChatMsg?.text?.includes(reject.id) && myChatMsg.text.startsWith('[[DUEL_REQ')) {
                setMyChatMsg(null);
@@ -229,7 +230,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   }, [processedOtherPlayers, battleState?.active, pvpInvite, pvpTarget, myChatMsg]);
 
   // --- AUTO CANCEL INVITE IF SENDER STOPS ---
-  // If I have a pending invite from X, but X stops broadcasting the request, close my modal.
   useEffect(() => {
       if (pvpInvite) {
           const inviter = processedOtherPlayers.find(p => p.id === pvpInvite.id);
@@ -399,7 +399,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (pvpInvite) {
           setMyChatMsg({ text: `[[DUEL_ACC::${pvpInvite.id}]]`, ts: Date.now() });
           sendHeartbeat(); // Instant Push
-          startPvPBattle(pvpInvite);
+          
+          // Receiver goes FIRST (Turn = player)
+          startPvPBattle(pvpInvite, true);
           setPvpInvite(null);
       }
   };
@@ -426,17 +428,137 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       sendHeartbeat();
   };
 
-  const startPvPBattle = (opponent: RemotePlayer) => {
+  // Helper to cleanup PvP State after match (Win or Lose)
+  const cleanupPvPState = () => {
+      if (pvpTarget) {
+          // Ignore this opponent for 15 seconds to prevent accidental re-engagement loop
+          ignoredInvitesRef.current.add(pvpTarget.id);
+          setTimeout(() => {
+              ignoredInvitesRef.current.delete(pvpTarget.id);
+          }, 15000); 
+      }
+      setPvpTarget(null);
+      setBattleState(null);
+      setMyChatMsg(null); // Clear any combat signals
+      sendHeartbeat();
+  };
+
+  const loseBattle = () => {
+      if (pvpTarget) {
+          // PvP Loss - Send Surrender Signal just in case
+          const uniqueId = Date.now();
+          const loseMsg = `[[ACT::LOSE::0::${uniqueId}]]`;
+          setMyChatMsg({ text: loseMsg, ts: uniqueId });
+          sendHeartbeat(); // Force push
+
+          setLocalSuffix(' (战败者)');
+          alert("DEFEAT: You have been marked as defeated.");
+          cleanupPvPState();
+      } else {
+          // PvE Loss
+          setBattleState(null);
+          playerPosRef.current = { x: 500, y: 700 };
+          if (playerElemRef.current) playerElemRef.current.style.transform = `translate3d(500px, 700px, 0)`;
+          enemyPosRef.current = { x: 1400, y: 300 };
+          if (enemyElemRef.current) enemyElemRef.current.style.transform = `translate3d(1400px, 300px, 0)`;
+          alert('MISSION FAILED: EMERGENCY EVACUATION TRIGGERED');
+      }
+  };
+
+  // --- BATTLE LOGIC HELPERS (PvE & PvP) ---
+
+  const startBattle = () => {
+      setBattleState({
+          active: true,
+          turn: 'player',
+          playerHp: 200,
+          playerMaxHp: 200,
+          playerShield: 0,
+          enemyHp: 500,
+          enemyMaxHp: 500,
+          logs: ['>> HOSTILE DETECTED', '>> INITIATING COMBAT PROTOCOL'],
+          cdCut: 0,
+          cdStealth: 0,
+          tutorialStep: 0,
+          showVictory: false,
+          animation: undefined,
+          animationKey: 0
+      });
+      keysPressed.current.clear();
+  };
+
+  const handleTutorialNext = () => {
+      setBattleState(prev => {
+          if (!prev) return null;
+          const nextStep = prev.tutorialStep + 1;
+          return {
+              ...prev,
+              tutorialStep: nextStep >= TUTORIAL_STEPS.length ? -1 : nextStep
+          };
+      });
+  };
+
+  const enemyTurnPvE = () => {
+      setBattleState(prev => {
+          if (!prev || prev.enemyHp <= 0) return prev;
+
+          let dmg = 0;
+          let log = '';
+          let newHp = prev.playerHp;
+          let newShield = prev.playerShield;
+          let anim: BattleState['animation'] = undefined;
+
+          // Simple AI: 30% chance heavy attack, 70% normal
+          if (Math.random() > 0.7) {
+              dmg = 35;
+              log = '>> WARNING: HIGH ENERGY SIGNATURE DETECTED';
+          } else {
+              dmg = 15;
+              log = `>> ENEMY ATTACK: ${dmg} DAMAGE`;
+          }
+
+          if (newShield > 0) {
+              if (newShield >= dmg) {
+                  newShield -= dmg;
+                  dmg = 0;
+                  log += ' (BLOCKED)';
+              } else {
+                  dmg -= newShield;
+                  newShield = 0;
+              }
+          }
+
+          newHp = Math.max(0, newHp - dmg);
+          if (dmg > 0) anim = 'enemy_attack';
+
+          if (newHp <= 0) {
+              setTimeout(loseBattle, 1000);
+          }
+
+          return {
+              ...prev,
+              playerHp: newHp,
+              playerShield: newShield,
+              logs: [log, ...prev.logs].slice(0, 8),
+              animation: anim,
+              animationKey: Date.now(),
+              turn: 'player'
+          };
+      });
+  };
+
+  // isMyTurn param determines who acts first
+  const startPvPBattle = (opponent: RemotePlayer, isMyTurn: boolean = false) => {
       setPvpTarget(opponent);
       setBattleState({
           active: true,
-          turn: 'player', // PvP allows simultaneous turns in this simple protocol
+          turn: isMyTurn ? 'player' : 'enemy', 
           playerHp: 200,
           playerMaxHp: 200,
           playerShield: 0,
           enemyHp: 200,
           enemyMaxHp: 200,
-          logs: [`>> DUEL START: ${opponent.nickname}`, '>> SYSTEM: SYNCING...'],
+          logs: [`>> DUEL START: ${opponent.nickname}`, `>> TURN: ${isMyTurn ? 'YOURS' : 'OPPONENT'}`],
           cdCut: 0,
           cdStealth: 0,
           tutorialStep: -1,
@@ -507,7 +629,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               enemyHp: newEnemyHp,
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
-              animationKey: Date.now()
+              animationKey: Date.now(),
+              turn: 'player' // Opponent moved, now IT IS MY TURN
           };
       });
   };
@@ -515,6 +638,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   // --- LOCAL BATTLE ACTION (Sending) ---
   const battleAction = (action: 'attack' | 'heal' | 'cut' | 'stealth') => {
       if (!battleState) return;
+      
+      // Strict Turn Check for PvP
+      if (pvpTarget && battleState.turn !== 'player') {
+          return; 
+      }
 
       let newLog = '';
       let newEnemyHp = battleState.enemyHp;
@@ -566,7 +694,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           cdCut: newCdCut,
           cdStealth: newCdStealth,
           animation: action,
-          animationKey: Date.now()
+          animationKey: Date.now(),
+          turn: pvpTarget ? 'enemy' : 'enemy' // Pass turn to enemy
       }) : null);
 
       // --- SEND SIGNAL IF PVP ---
@@ -601,82 +730,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
   };
 
-  const startBattle = useCallback(() => {
-      // Default PvE Start
-      setBattleState({
-          active: true,
-          turn: 'player',
-          playerHp: 150,
-          playerMaxHp: 150,
-          playerShield: 0,
-          enemyHp: 600,
-          enemyMaxHp: 600,
-          logs: ['>> BATTLE_START: SENTINEL_X ENCOUNTERED', '>> THREAT_LEVEL: EXTREME'],
-          cdCut: 0,
-          cdStealth: 0,
-          tutorialStep: 0, 
-          showVictory: false,
-          animation: undefined,
-          animationKey: 0
-      });
-      keysPressed.current.clear();
-  }, []);
-
-  const enemyTurnPvE = () => {
-      setBattleState(prev => {
-          if (!prev || prev.enemyHp <= 0) return prev;
-          
-          const dmg = Math.floor(Math.random() * 15) + 15;
-          let remainingDmg = dmg;
-          let newShield = prev.playerShield;
-          let newHp = prev.playerHp;
-
-          if (newShield > 0) {
-              if (newShield >= remainingDmg) {
-                  newShield -= remainingDmg;
-                  remainingDmg = 0;
-              } else {
-                  remainingDmg -= newShield;
-                  newShield = 0;
-              }
-          }
-          newHp = Math.max(0, newHp - remainingDmg);
-          
-          if (newHp <= 0) {
-              setTimeout(loseBattle, 800);
-          }
-
-          const blockedLog = dmg - remainingDmg > 0 ? ` (${dmg - remainingDmg} BLOCKED)` : '';
-          return {
-              ...prev,
-              playerHp: newHp,
-              playerShield: newShield,
-              turn: 'player',
-              logs: [`>> SENTINEL [ATTACK]: ${dmg} DMG${blockedLog}`, ...prev.logs].slice(0, 8),
-              animation: 'enemy_attack',
-              animationKey: Date.now()
-          };
-      });
-  };
-
-  // Shared Handlers
-  const handleTutorialNext = () => {
-      if (battleState) {
-          if (battleState.tutorialStep < TUTORIAL_STEPS.length - 1) {
-              setBattleState({ ...battleState, tutorialStep: battleState.tutorialStep + 1 });
-          } else {
-              setBattleState({ ...battleState, tutorialStep: -1 }); 
-          }
-      }
-  };
-
   const handleVictoryConfirm = () => {
       if (pvpTarget) {
           // PvP Win
-          setBattleState(null);
-          setPvpTarget(null);
           alert("VICTORY! HONOR PRESERVED.");
-          setMyChatMsg(null); // Clear combat signal
+          cleanupPvPState();
       } else {
           // PvE Win
           localStorage.setItem('nova_enemy_defeated', 'true');
@@ -686,33 +744,17 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
   };
 
-  const loseBattle = () => {
-      if (pvpTarget) {
-          // PvP Loss - Send Surrender Signal
-          const uniqueId = Date.now();
-          const loseMsg = `[[ACT::LOSE::0::${uniqueId}]]`;
-          setMyChatMsg({ text: loseMsg, ts: uniqueId });
-          sendHeartbeat(); // Force push
-
-          setLocalSuffix(' (战败者)');
-          setBattleState(null);
-          setPvpTarget(null);
-          alert("DEFEAT: You have been marked as defeated.");
-      } else {
-          // PvE Loss
-          setBattleState(null);
-          playerPosRef.current = { x: 500, y: 700 };
-          if (playerElemRef.current) playerElemRef.current.style.transform = `translate3d(500px, 700px, 0)`;
-          enemyPosRef.current = { x: 1400, y: 300 };
-          if (enemyElemRef.current) enemyElemRef.current.style.transform = `translate3d(1400px, 300px, 0)`;
-          alert('MISSION FAILED: EMERGENCY EVACUATION TRIGGERED');
-      }
-  };
-
   const handleSendChat = (e: React.FormEvent) => {
       e.preventDefault();
       if (chatInputValue.trim()) {
-          setMyChatMsg({ text: chatInputValue.trim(), ts: Date.now() });
+          let msg = chatInputValue.trim();
+          
+          // Hidden Author Command
+          if (msg.startsWith('/root ')) {
+              msg = `[[ROOT::${msg.slice(6)}]]`;
+          }
+
+          setMyChatMsg({ text: msg, ts: Date.now() });
           setChatInputValue("");
           setShowChatInput(false);
           sendHeartbeat(); // Push update immediately
@@ -943,10 +985,28 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     }}
                 >
                     {/* Remote Chat Bubble - No Time Expiry Check to fix visibility issues */}
-                    {p.msg && !p.msg.startsWith('[[') && (
-                        <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
-                            {p.msg}
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                    {p.msg && (!p.msg.startsWith('[[') || p.msg.startsWith('[[ROOT::')) && (
+                        <div className={`absolute bottom-full mb-4 left-1/2 -translate-x-1/2 z-50 animate-bounce w-max max-w-[200px] rounded-sm leading-tight text-center whitespace-normal break-words ${
+                            p.msg.startsWith('[[ROOT::') 
+                            ? 'bg-amber-950/90 border-2 border-amber-500 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.6)] px-3 py-2' 
+                            : 'bg-black/90 border border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] px-2 py-1'
+                        }`}>
+                            {p.msg.startsWith('[[ROOT::') ? (
+                                <>
+                                    <div className="flex items-center justify-center gap-1 border-b border-amber-500/50 pb-1 mb-1 text-[8px] font-black tracking-widest text-amber-500">
+                                        <Crown size={10} /> CREATOR
+                                    </div>
+                                    <div className="font-serif italic text-xs">
+                                        {p.msg.slice(8, -2)}
+                                    </div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-amber-500"></div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-[10px]">{p.msg}</div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -1043,10 +1103,28 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 }}
             >
                 {/* My Chat Bubble */}
-                {myChatMsg && !myChatMsg.text.startsWith('[[') && (
-                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
-                        {myChatMsg.text}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                {myChatMsg && (!myChatMsg.text.startsWith('[[') || myChatMsg.text.startsWith('[[ROOT::')) && (
+                    <div className={`absolute bottom-full mb-4 left-1/2 -translate-x-1/2 z-50 animate-bounce w-max max-w-[200px] rounded-sm leading-tight text-center whitespace-normal break-words ${
+                        myChatMsg.text.startsWith('[[ROOT::') 
+                        ? 'bg-amber-950/90 border-2 border-amber-500 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.6)] px-3 py-2' 
+                        : 'bg-black/90 border border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] px-2 py-1'
+                    }`}>
+                        {myChatMsg.text.startsWith('[[ROOT::') ? (
+                            <>
+                                <div className="flex items-center justify-center gap-1 border-b border-amber-500/50 pb-1 mb-1 text-[8px] font-black tracking-widest text-amber-500">
+                                    <Crown size={10} /> CREATOR
+                                </div>
+                                <div className="font-serif italic text-xs">
+                                    {myChatMsg.text.slice(8, -2)}
+                                </div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-amber-500"></div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="text-[10px]">{myChatMsg.text}</div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                            </>
+                        )}
                     </div>
                 )}
 
