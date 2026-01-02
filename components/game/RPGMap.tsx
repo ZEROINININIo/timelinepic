@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban, Crown } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban, Crown, AlertOctagon } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -15,6 +15,11 @@ import BattleInterface from './rpg/BattleInterface';
 const API_URL = 'https://cdn.zeroxv.cn/nova_api/api.php';
 const HEARTBEAT_INTERVAL = 2000; // Increased to 2s to reduce load
 const MESSAGE_LIFETIME = 6000; // 6 seconds display time for local echo
+
+// Balance Constants
+const MAX_HP_PLAYER = 300;
+const MAX_HP_ENEMY_PVE = 600;
+const MAX_HP_ENEMY_PVP = 300;
 
 interface RPGMapProps {
   language: Language;
@@ -72,6 +77,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [isOnline, setIsOnline] = useState(false);
   const [showPlayerList, setShowPlayerList] = useState(false);
   
+  // Duplicate Name Prevention
+  const [isDuplicateNameDetected, setIsDuplicateNameDetected] = useState(false);
+  const [duplicateNameAlert, setDuplicateNameAlert] = useState(false); // To show UI modal
+
   // Fix: Use sessionStorage to persist ID across remounts (prevents ghosts)
   const sessionIdRef = useRef<string>(
     (function() {
@@ -104,6 +113,12 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [systemLogs, setSystemLogs] = useState<string[]>([]);
 
   const playerName = (nickname || 'USR_01') + localSuffix;
+
+  // Reset duplicate detection when nickname changes
+  useEffect(() => {
+      setIsDuplicateNameDetected(false);
+      setDuplicateNameAlert(false);
+  }, [nickname]);
 
   // Tea Dialogue Data
   const teaDialogues = [
@@ -157,7 +172,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   // --- MULTIPLAYER HEARTBEAT & SYNC ---
   const sendHeartbeat = useCallback(async () => {
       // Prevent connection during preload OR if tutorial enemy is still active (Single Player Mode)
-      if (isPreloading || !isEnemyDefeatedRef.current) return;
+      // Also prevent if duplicate name detected
+      if (isPreloading || !isEnemyDefeatedRef.current || isDuplicateNameDetected) return;
 
       try {
           const payload = {
@@ -167,7 +183,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               y: Math.round(playerPosRef.current.y),
               map: 'main',
               msg: myChatMsg?.text || null,
-              msg_ts: myChatMsg?.ts || null
+              msg_ts: myChatMsg?.ts || null,
+              tea: isTeaFollowing // Broadcast local tea status
           };
 
           const res = await fetch(`${API_URL}?action=heartbeat`, {
@@ -177,9 +194,21 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           });
 
           if (res.ok) {
-              const data = await res.json();
-              setIsOnline(true);
+              const data: RemotePlayer[] = await res.json();
+              
               if (Array.isArray(data)) {
+                  // Duplicate Name Check
+                  const myId = sessionIdRef.current;
+                  const hasDuplicate = data.some(p => p.nickname === playerName && p.id !== myId);
+                  
+                  if (hasDuplicate) {
+                      setIsDuplicateNameDetected(true);
+                      setIsOnline(false);
+                      setDuplicateNameAlert(true);
+                      return;
+                  }
+
+                  setIsOnline(true);
                   setOtherPlayers(data);
               }
           } else {
@@ -189,7 +218,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           console.warn("Heartbeat failed", e);
           setIsOnline(false);
       }
-  }, [isPreloading, playerName, myChatMsg]);
+  }, [isPreloading, playerName, myChatMsg, isTeaFollowing, isDuplicateNameDetected]);
 
   // Polling Interval
   useEffect(() => {
@@ -487,15 +516,17 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       setBattleState({
           active: true,
           turn: 'player',
-          playerHp: 200,
-          playerMaxHp: 200,
+          playerHp: MAX_HP_PLAYER,
+          playerMaxHp: MAX_HP_PLAYER,
           playerShield: 0,
-          enemyHp: 500,
-          enemyMaxHp: 500,
+          enemyHp: MAX_HP_ENEMY_PVE,
+          enemyMaxHp: MAX_HP_ENEMY_PVE,
           enemyShield: 0,
           logs: ['>> HOSTILE DETECTED', '>> INITIATING COMBAT PROTOCOL'],
           cdCut: 0,
           cdStealth: 0,
+          cdRepair: 0,
+          cdSpike: 0,
           tutorialStep: 0,
           showVictory: false,
           animation: undefined,
@@ -571,15 +602,17 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       setBattleState({
           active: true,
           turn: isMyTurn ? 'player' : 'enemy', 
-          playerHp: 200,
-          playerMaxHp: 200,
+          playerHp: MAX_HP_PLAYER,
+          playerMaxHp: MAX_HP_PLAYER,
           playerShield: 0,
-          enemyHp: 200,
-          enemyMaxHp: 200,
+          enemyHp: MAX_HP_ENEMY_PVP,
+          enemyMaxHp: MAX_HP_ENEMY_PVP,
           enemyShield: 0,
           logs: [`>> DUEL START: ${opponent.nickname}`, `>> TURN: ${isMyTurn ? 'YOURS' : 'OPPONENT'}`],
           cdCut: 0,
           cdStealth: 0,
+          cdRepair: 0,
+          cdSpike: 0,
           tutorialStep: -1,
           showVictory: false,
           animation: undefined,
@@ -633,6 +666,15 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               // Check Defeat locally (failsafe, though attacker usually sends WIN)
               if (newHp <= 0) setTimeout(loseBattle, 1000);
 
+          } else if (type === 'SPIKE') {
+              // Opponent used SPIKE (Break Shield + DMG)
+              let damage = value;
+              newShield = 0; // Shield Broken!
+              newHp = Math.max(0, newHp - damage);
+              log = `>> ${actorName} [DATA_SPIKE]: SHIELD BROKEN & ${value} DMG`;
+              anim = 'enemy_attack';
+              if (newHp <= 0) setTimeout(loseBattle, 1000);
+
           } else if (type === 'HEAL') {
               // Opponent healed themselves. Update their Phantom HP on my screen.
               newEnemyHp = Math.min(prev.enemyMaxHp, prev.enemyHp + value);
@@ -658,7 +700,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   };
 
   // --- LOCAL BATTLE ACTION (Sending) ---
-  const battleAction = (action: 'attack' | 'heal' | 'cut' | 'stealth') => {
+  const battleAction = (action: 'attack' | 'heal' | 'cut' | 'stealth' | 'spike') => {
       if (!battleState) return;
       
       // Strict Turn Check for PvP
@@ -673,12 +715,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       let newEnemyShield = battleState.enemyShield;
       let newCdCut = Math.max(0, battleState.cdCut - 1);
       let newCdStealth = Math.max(0, battleState.cdStealth - 1);
+      let newCdRepair = Math.max(0, battleState.cdRepair - 1);
+      let newCdSpike = Math.max(0, battleState.cdSpike - 1);
       
       let signalType = "";
       let signalValue = 0;
 
       if (action === 'attack') {
-          const dmg = Math.floor(Math.random() * 10) + 15;
+          const dmg = Math.floor(Math.random() * 5) + 20; // 20-25
           let damageCalc = dmg;
           
           // Calculate damage against enemy shield locally to match visual state
@@ -697,14 +741,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalType = "ATK";
           signalValue = dmg;
       } else if (action === 'heal') {
-          const heal = Math.floor(Math.random() * 20) + 40;
+          if (battleState.cdRepair > 0) return;
+          const heal = 50; // Fixed heal
           newPlayerHp = Math.min(battleState.playerMaxHp, battleState.playerHp + heal);
           newLog = `>> ${playerName} [REPAIR]: +${heal} HP`;
+          newCdRepair = 3;
           signalType = "HEAL";
           signalValue = heal;
       } else if (action === 'cut') {
           if (battleState.cdCut > 0) return;
-          const dmg = Math.floor(Math.random() * 30) + 80;
+          const dmg = Math.floor(Math.random() * 10) + 65; // 65-75
           let damageCalc = dmg;
 
           // Calculate damage against enemy shield locally
@@ -720,17 +766,26 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
           newEnemyHp = Math.max(0, battleState.enemyHp - damageCalc);
           newLog = `>> ${playerName} [CUT_DATA]: ${dmg} CRITICAL`;
-          newCdCut = 3;
+          newCdCut = 4;
           signalType = "CUT";
           signalValue = dmg;
       } else if (action === 'stealth') {
           if (battleState.cdStealth > 0) return;
-          const shieldGain = 50;
+          const shieldGain = 75;
           newPlayerShield += shieldGain;
           newLog = `>> ${playerName} [DATA_STEALTH]: +${shieldGain} ARMOR`;
-          newCdStealth = 3;
+          newCdStealth = 4;
           signalType = "STL";
           signalValue = shieldGain;
+      } else if (action === 'spike') {
+          if (battleState.cdSpike > 0) return;
+          const dmg = 30; // Fixed dmg
+          newEnemyShield = 0; // Break Shield
+          newEnemyHp = Math.max(0, battleState.enemyHp - dmg); // Direct dmg
+          newLog = `>> ${playerName} [DATA_SPIKE]: SHIELD BREAK & ${dmg} DMG`;
+          newCdSpike = 3;
+          signalType = "SPIKE";
+          signalValue = dmg;
       }
 
       // Update Local UI
@@ -743,6 +798,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           logs: [newLog, ...prev.logs].slice(0, 8),
           cdCut: newCdCut,
           cdStealth: newCdStealth,
+          cdRepair: newCdRepair,
+          cdSpike: newCdSpike,
           animation: action,
           animationKey: Date.now(),
           turn: pvpTarget ? 'enemy' : 'enemy' // Pass turn to enemy
@@ -938,26 +995,53 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       // Tea NPC Follow Logic
+      // Check if ANY remote player has Tea
+      const remoteTeaOwner = processedOtherPlayers.find(p => p.tea);
+      
+      let targetTeaX = 80; // Default Spawn
+      let targetTeaY = 150;
+      let shouldMoveTea = false;
+
       if (isTeaFollowing) {
-          const px = playerPosRef.current.x;
-          const py = playerPosRef.current.y;
+          // Follow Local
+          targetTeaX = playerPosRef.current.x;
+          targetTeaY = playerPosRef.current.y;
+          shouldMoveTea = true;
+      } else if (remoteTeaOwner) {
+          // Follow Remote
+          targetTeaX = remoteTeaOwner.safeX;
+          targetTeaY = remoteTeaOwner.safeY;
+          shouldMoveTea = true;
+      }
+
+      // Smooth move Tea to target
+      if (shouldMoveTea) {
           const tx = teaPosRef.current.x;
           const ty = teaPosRef.current.y;
-          
-          // Target position: slightly behind player
-          const distX = px - tx;
-          const distY = py - ty;
+          const distX = targetTeaX - tx;
+          const distY = targetTeaY - ty;
           const distance = Math.sqrt(distX * distX + distY * distY);
           
           if (distance > 60) {
               const moveSpeed = SPEED * 0.95; // Slightly slower
               teaPosRef.current.x += (distX / distance) * moveSpeed;
               teaPosRef.current.y += (distY / distance) * moveSpeed;
-              
-              if (teaElemRef.current) {
-                  teaElemRef.current.style.transform = `translate3d(${teaPosRef.current.x}px, ${teaPosRef.current.y}px, 0)`;
-              }
           }
+      } else {
+          // Return to spawn gradually if no one owns it
+          const sx = 80;
+          const sy = 150;
+          const distX = sx - teaPosRef.current.x;
+          const distY = sy - teaPosRef.current.y;
+          const distance = Math.sqrt(distX * distX + distY * distY);
+          if (distance > 5) {
+              teaPosRef.current.x += (distX / distance) * 2;
+              teaPosRef.current.y += (distY / distance) * 2;
+          }
+      }
+      
+      if (teaElemRef.current) {
+          teaElemRef.current.style.transform = `translate3d(${teaPosRef.current.x}px, ${teaPosRef.current.y}px, 0)`;
       }
 
       // Enemy AI
@@ -982,7 +1066,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, findNearbyPlayer, nearbyPlayer, battleState, isTeaFollowing, pendingLink, showChatInput, showPlayerList]);
+  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, findNearbyPlayer, nearbyPlayer, battleState, isTeaFollowing, pendingLink, showChatInput, showPlayerList, processedOtherPlayers]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -1117,17 +1201,17 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 ref={teaElemRef}
                 className={`
                     absolute flex items-center justify-center z-20 will-change-transform
-                    ${!isTeaFollowing && activeObj?.id === 'npc-tea' ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse' : ''}
+                    ${(!isTeaFollowing && !processedOtherPlayers.some(p => p.tea)) && activeObj?.id === 'npc-tea' ? 'border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse' : ''}
                 `}
                 style={{
-                    width: isTeaFollowing ? PLAYER_SIZE : 40, 
-                    height: isTeaFollowing ? PLAYER_SIZE : 40,
+                    width: (isTeaFollowing || processedOtherPlayers.some(p => p.tea)) ? PLAYER_SIZE : 40, 
+                    height: (isTeaFollowing || processedOtherPlayers.some(p => p.tea)) ? PLAYER_SIZE : 40,
                     top: 0, 
                     left: 0,
                     transition: 'width 0.3s, height 0.3s'
                 }}
             >
-                {isTeaFollowing ? (
+                {(isTeaFollowing || processedOtherPlayers.some(p => p.tea)) ? (
                     <div className="w-full h-full relative flex items-center justify-center">
                         <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-amber-500 font-black text-[10px] whitespace-nowrap tracking-wider uppercase drop-shadow-[0_2px_0_rgba(0,0,0,1)] bg-black/50 px-1 border border-amber-900/50">TEA</div>
                         <div className="absolute inset-0 bg-black rounded-full border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
@@ -1220,7 +1304,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         {/* HUD */}
         <div className="fixed top-4 left-4 z-40 flex flex-col gap-2 pointer-events-none">
             <div className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-light backdrop-blur-sm">
-                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : (!isEnemyDefeatedRef.current ? 'LOCAL_MODE' : 'CONNECTING...')}
+                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : (!isEnemyDefeatedRef.current ? 'LOCAL_MODE' : (isDuplicateNameDetected ? 'OFFLINE (CONFLICT)' : 'CONNECTING...'))}
             </div>
             <div ref={hudPosRef} className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-gray backdrop-blur-sm">
                 POS: 500, 700
@@ -1256,6 +1340,32 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 >
                     <Ban size={14} /> CANCEL INVITE
                 </button>
+            </div>
+        )}
+
+        {/* Duplicate Name Alert Modal */}
+        {duplicateNameAlert && (
+            <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+                <div className="bg-ash-black border-2 border-red-500 p-6 shadow-[0_0_50px_rgba(220,38,38,0.5)] w-full max-w-sm text-center relative animate-shake-violent">
+                    <AlertOctagon size={48} className="mx-auto text-red-500 mb-4 animate-pulse" />
+                    <h2 className="text-xl font-black text-red-500 uppercase tracking-widest mb-2">SIGNAL CONFLICT</h2>
+                    <p className="text-ash-light font-mono text-sm mb-6 leading-relaxed">
+                        IDENTITY_DUPLICATE_DETECTED<br/>
+                        <span className="text-red-400 font-bold">"{playerName}"</span> IS ALREADY ACTIVE.
+                    </p>
+                    <div className="bg-red-950/30 border border-red-500/30 p-2 mb-6 text-[10px] text-red-300 font-mono">
+                        SYSTEM HAS FORCED OFFLINE MODE.<br/>PLEASE CHANGE YOUR NICKNAME IN GUESTBOOK.
+                    </div>
+                    <button 
+                        onClick={() => {
+                            setDuplicateNameAlert(false);
+                            if (onOpenGuestbook) onOpenGuestbook();
+                        }}
+                        className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 uppercase tracking-widest transition-colors shadow-hard"
+                    >
+                        CHANGE IDENTITY
+                    </button>
+                </div>
             </div>
         )}
 
@@ -1297,7 +1407,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                         {/* Others - Use processed list */}
                         {processedOtherPlayers.map(p => (
                             <div key={p.id} className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-cyan-300/80">
-                                <span>{p.nickname}</span>
+                                <span className="flex items-center gap-1">
+                                    {p.nickname}
+                                    {p.tea && <span className="text-amber-500 text-[8px] border border-amber-500/50 px-1 ml-1">TEA</span>}
+                                </span>
                                 <span>[{Math.round(p.safeX)}, {Math.round(p.safeY)}]</span>
                             </div>
                         ))}

@@ -168,6 +168,7 @@ export interface RemotePlayer {
   last_active: number;
   msg?: string;
   msg_ts?: number;
+  tea?: boolean; // Is NPC tea following this player?
 }
 
 // --- Guestbook Types ---

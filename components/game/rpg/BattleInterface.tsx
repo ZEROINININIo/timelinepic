@@ -2,12 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import { BattleState } from './types';
 import { TUTORIAL_STEPS, VICTORY_MSG } from './tutorialData';
-import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2, Terminal } from 'lucide-react';
+import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2, Terminal, Play, Hourglass } from 'lucide-react';
 import { Language } from '../../../types';
 
 interface BattleInterfaceProps {
   state: BattleState;
-  onAction: (action: 'attack' | 'heal' | 'cut' | 'stealth') => void;
+  onAction: (action: 'attack' | 'heal' | 'cut' | 'stealth' | 'spike') => void;
   onTutorialNext: () => void;
   onVictoryConfirm: () => void;
   language: Language;
@@ -19,9 +19,9 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
   const { 
       playerHp, playerMaxHp, playerShield, 
       enemyHp, enemyMaxHp, enemyShield,
-      logs, cdCut, cdStealth,
+      logs, cdCut, cdStealth, cdRepair, cdSpike,
       tutorialStep, showVictory,
-      animation, animationKey
+      animation, animationKey, turn
   } = state;
 
   const [activeEffect, setActiveEffect] = useState<string | null>(null);
@@ -30,6 +30,8 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
   const [secretClicks, setSecretClicks] = useState(0);
   const [showCheatInput, setShowCheatInput] = useState(false);
   const [cheatCode, setCheatCode] = useState('');
+
+  const isMyTurn = turn === 'player';
 
   // Trigger effect when animation state changes
   useEffect(() => {
@@ -142,7 +144,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                     {/* Enemy Entity (Centered & Stable) */}
                     <div className={`relative z-10 flex flex-col items-center gap-4 w-full max-w-xs transition-opacity duration-300 ${currentTutorial ? 'opacity-20 lg:opacity-100' : 'opacity-100'}`}>
                         {/* Enemy Frame (No Rotation, Static) */}
-                        <div className={`w-32 h-32 lg:w-48 lg:h-48 bg-black/80 border-4 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.5)] flex items-center justify-center relative overflow-hidden group ${activeEffect === 'attack' ? 'animate-shake-violent' : ''}`}>
+                        <div className={`w-32 h-32 lg:w-48 lg:h-48 bg-black/80 border-4 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.5)] flex items-center justify-center relative overflow-hidden group ${activeEffect === 'attack' || activeEffect === 'spike' ? 'animate-shake-violent' : ''}`}>
                             {/* Inner Glitch Effect */}
                             <div className="absolute inset-0 bg-red-900/20"></div>
                             {/* Corner Decors */}
@@ -186,6 +188,15 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                                 </div>
                             )}
 
+                            {/* Data Spike Effect (Shield Break) */}
+                            {activeEffect === 'spike' && (
+                                <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none overflow-hidden">
+                                    <div className="absolute w-full h-[200%] bg-blue-500/50 animate-[spin_0.5s_linear] opacity-50 blur-xl"></div>
+                                    <Zap size={80} className="text-yellow-400 absolute animate-ping" />
+                                    <div className="absolute inset-0 border-4 border-blue-400 animate-ping rounded-full"></div>
+                                </div>
+                            )}
+
                         </div>
 
                         {/* Enemy Status Bar */}
@@ -220,8 +231,19 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                 {/* Control Panel (Bottom/Right) - Player Status + Logs + Actions */}
                 <div className="w-full lg:w-96 bg-ash-black flex flex-col shrink-0 h-auto border-t-2 lg:border-t-0 border-red-900/30 relative z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
                     
+                    {/* Turn Indicator (PvP Only or Always) */}
+                    {isPvP && (
+                        <div className={`h-8 flex items-center justify-center text-xs font-black uppercase tracking-widest border-b border-ash-dark transition-colors duration-500 ${isMyTurn ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30' : 'bg-red-900/20 text-red-500/50 border-red-900/30'}`}>
+                            {isMyTurn ? (
+                                <span className="flex items-center gap-2 animate-pulse"><Play size={10} fill="currentColor" /> YOUR TURN</span>
+                            ) : (
+                                <span className="flex items-center gap-2"><Hourglass size={10} className="animate-spin-slow" /> OPPONENT TURN</span>
+                            )}
+                        </div>
+                    )}
+
                     {/* Logs (Flexible Height) */}
-                    <div className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1 text-ash-gray border-b border-ash-dark/50 bg-black/20 min-h-[80px] max-h-[150px] lg:max-h-none lg:h-auto inner-shadow">
+                    <div className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1 text-ash-gray border-b border-ash-dark/50 bg-black/20 min-h-[80px] max-h-[120px] lg:max-h-none lg:h-auto inner-shadow">
                         {logs.map((log, i) => (
                             <div key={i} className="border-l-2 border-ash-dark pl-2">{log}</div>
                         ))}
@@ -304,52 +326,75 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                         )}
                     </div>
 
-                    {/* Actions Grid */}
-                    <div className="p-3 lg:p-4 grid grid-cols-2 gap-2 bg-ash-black pb-6 lg:pb-4">
-                        <button 
-                            onClick={() => onAction('attack')}
-                            className={`p-3 lg:p-4 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
-                                ${highlightBtn === 'attack' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-ash-gray/30 hover:bg-ash-dark text-ash-light'}
-                            `}
-                        >
-                            <Crosshair size={18} className="lg:w-5 lg:h-5" />
-                            <span className="text-[10px] lg:text-xs font-bold">ATTACK</span>
-                        </button>
+                    {/* Actions Grid - Updated Layout for 5 buttons */}
+                    <div className={`p-3 lg:p-4 bg-ash-black pb-6 lg:pb-4 transition-opacity duration-300 ${!isMyTurn && isPvP ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            {/* Row 1: Basic & Anti-Shield */}
+                            <button 
+                                onClick={() => onAction('attack')}
+                                className={`p-3 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
+                                    ${highlightBtn === 'attack' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-ash-gray/30 hover:bg-ash-dark text-ash-light'}
+                                `}
+                            >
+                                <Crosshair size={16} />
+                                <span className="text-[10px] font-bold">ATTACK</span>
+                            </button>
 
-                        <button 
-                            onClick={() => onAction('cut')}
-                            disabled={cdCut > 0}
-                            className={`p-3 lg:p-4 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
-                                ${cdCut > 0 ? 'opacity-50 cursor-not-allowed border-red-900/30 text-red-800' : 
-                                  highlightBtn === 'cut' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-red-500/50 text-red-400 hover:bg-red-950/20'}
-                            `}
-                        >
-                            <Scissors size={18} className="lg:w-5 lg:h-5" />
-                            <span className="text-[10px] lg:text-xs font-bold">CUT DATA</span>
-                            {cdCut > 0 && <span className="absolute top-1 right-2 font-mono text-[9px]">{cdCut}</span>}
-                        </button>
+                            <button 
+                                onClick={() => onAction('spike')}
+                                disabled={cdSpike > 0}
+                                className={`p-3 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
+                                    ${cdSpike > 0 ? 'opacity-50 cursor-not-allowed border-yellow-900/30 text-yellow-800' : 
+                                      highlightBtn === 'spike' ? 'border-yellow-400 bg-yellow-900/20 animate-pulse' : 'border-yellow-500/50 text-yellow-400 hover:bg-yellow-950/20'}
+                                `}
+                            >
+                                <Zap size={16} />
+                                <span className="text-[10px] font-bold">SPIKE</span>
+                                {cdSpike > 0 && <span className="absolute top-1 right-2 font-mono text-[9px]">{cdSpike}</span>}
+                            </button>
+                        </div>
 
-                        <button 
-                            onClick={() => onAction('stealth')}
-                            disabled={cdStealth > 0}
-                            className={`p-3 lg:p-4 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
-                                ${cdStealth > 0 ? 'opacity-50 cursor-not-allowed border-blue-900/30 text-blue-800' : 
-                                  highlightBtn === 'stealth' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-blue-500/50 text-blue-400 hover:bg-blue-950/20'}
-                            `}
-                        >
-                            <EyeOff size={18} className="lg:w-5 lg:h-5" />
-                            <span className="text-[10px] lg:text-xs font-bold">STEALTH</span>
-                            {cdStealth > 0 && <span className="absolute top-1 right-2 font-mono text-[9px]">{cdStealth}</span>}
-                        </button>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            {/* Row 2: Heavy & Stealth */}
+                            <button 
+                                onClick={() => onAction('cut')}
+                                disabled={cdCut > 0}
+                                className={`p-3 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
+                                    ${cdCut > 0 ? 'opacity-50 cursor-not-allowed border-red-900/30 text-red-800' : 
+                                      highlightBtn === 'cut' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-red-500/50 text-red-400 hover:bg-red-950/20'}
+                                `}
+                            >
+                                <Scissors size={16} />
+                                <span className="text-[10px] font-bold">CUT DATA</span>
+                                {cdCut > 0 && <span className="absolute top-1 right-2 font-mono text-[9px]">{cdCut}</span>}
+                            </button>
 
+                            <button 
+                                onClick={() => onAction('stealth')}
+                                disabled={cdStealth > 0}
+                                className={`p-3 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
+                                    ${cdStealth > 0 ? 'opacity-50 cursor-not-allowed border-blue-900/30 text-blue-800' : 
+                                      highlightBtn === 'stealth' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-blue-500/50 text-blue-400 hover:bg-blue-950/20'}
+                                `}
+                            >
+                                <EyeOff size={16} />
+                                <span className="text-[10px] font-bold">STEALTH</span>
+                                {cdStealth > 0 && <span className="absolute top-1 right-2 font-mono text-[9px]">{cdStealth}</span>}
+                            </button>
+                        </div>
+
+                        {/* Row 3: Repair (Full Width) */}
                         <button 
                             onClick={() => onAction('heal')}
-                            className={`p-3 lg:p-4 border-2 flex flex-col items-center justify-center gap-1 transition-all relative group
-                                ${highlightBtn === 'heal' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-green-500/50 text-green-400 hover:bg-green-950/20'}
+                            disabled={cdRepair > 0}
+                            className={`w-full p-2 border-2 flex items-center justify-center gap-2 transition-all relative group
+                                ${cdRepair > 0 ? 'opacity-50 cursor-not-allowed border-green-900/30 text-green-800' : 
+                                  highlightBtn === 'heal' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-green-500/50 text-green-400 hover:bg-green-950/20'}
                             `}
                         >
-                            <Activity size={18} className="lg:w-5 lg:h-5" />
-                            <span className="text-[10px] lg:text-xs font-bold">REPAIR</span>
+                            <Activity size={16} />
+                            <span className="text-[10px] font-bold">REPAIR SYSTEM</span>
+                            {cdRepair > 0 && <span className="font-mono text-[9px] ml-2">[{cdRepair}]</span>}
                         </button>
                     </div>
                 </div>
