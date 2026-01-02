@@ -146,8 +146,22 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- OPTIMIZATION: Process Remote Players Data ---
   const processedOtherPlayers = useMemo(() => {
+      const myId = sessionIdRef.current;
+      const uniqueMap = new Map<string, RemotePlayer>();
+
+      otherPlayers.forEach(p => {
+          // 1. Filter out self (we render self locally)
+          if (p.id === myId) return;
+
+          // 2. Deduplicate by nickname (Keep latest active)
+          const existing = uniqueMap.get(p.nickname);
+          if (!existing || (p.last_active > existing.last_active)) {
+              uniqueMap.set(p.nickname, p);
+          }
+      });
+
       // Cap at 15 players to prevent rendering lag
-      return otherPlayers.slice(0, 15).map(p => {
+      return Array.from(uniqueMap.values()).slice(0, 15).map(p => {
           const px = Number(p.x);
           const py = Number(p.y);
           if (isNaN(px) || isNaN(py)) return null;
@@ -1326,7 +1340,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 className="bg-black/50 border border-cyan-500/30 px-3 py-1 text-[10px] font-mono text-cyan-400 backdrop-blur-sm flex items-center gap-2 pointer-events-auto hover:bg-cyan-950/30 transition-colors"
             >
                 <Users size={12} />
-                <span>ECHOES: {otherPlayers.length}</span>
+                <span>ECHOES: {processedOtherPlayers.length}</span>
                 <Signal size={10} className={`animate-pulse ${isOnline ? 'text-green-500' : 'text-red-500'}`} />
             </button>
         </div>
@@ -1414,7 +1428,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                                 <span>[{Math.round(p.safeX)}, {Math.round(p.safeY)}]</span>
                             </div>
                         ))}
-                        {otherPlayers.length === 0 && <div className="text-[10px] text-cyan-900 italic py-2">NO_ECHOES_DETECTED</div>}
+                        {processedOtherPlayers.length === 0 && <div className="text-[10px] text-cyan-900 italic py-2">NO_ECHOES_DETECTED</div>}
                     </div>
                 </div>
             </div>
