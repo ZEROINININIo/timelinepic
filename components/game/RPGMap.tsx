@@ -492,6 +492,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           playerShield: 0,
           enemyHp: 500,
           enemyMaxHp: 500,
+          enemyShield: 0,
           logs: ['>> HOSTILE DETECTED', '>> INITIATING COMBAT PROTOCOL'],
           cdCut: 0,
           cdStealth: 0,
@@ -555,6 +556,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               ...prev,
               playerHp: newHp,
               playerShield: newShield,
+              enemyShield: prev.enemyShield, // PvE Enemy shield logic usually simple, keep ref
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
               animationKey: Date.now(),
@@ -574,6 +576,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           playerShield: 0,
           enemyHp: 200,
           enemyMaxHp: 200,
+          enemyShield: 0,
           logs: [`>> DUEL START: ${opponent.nickname}`, `>> TURN: ${isMyTurn ? 'YOURS' : 'OPPONENT'}`],
           cdCut: 0,
           cdStealth: 0,
@@ -607,11 +610,12 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           let newHp = prev.playerHp;
           let newShield = prev.playerShield;
           let newEnemyHp = prev.enemyHp;
+          let newEnemyShield = prev.enemyShield || 0;
           let log = "";
           let anim: BattleState['animation'] = undefined;
 
           if (type === 'ATK' || type === 'CUT') {
-              // Opponent attacked ME
+              // Opponent attacked ME (We update OUR stats)
               let damage = value;
               if (newShield > 0) {
                   if (newShield >= damage) {
@@ -634,7 +638,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               newEnemyHp = Math.min(prev.enemyMaxHp, prev.enemyHp + value);
               log = `>> ${actorName} [REPAIR]: +${value} HP`;
           } else if (type === 'STL') {
-              // Opponent used shield
+              // Opponent used shield. Update their Phantom Shield.
+              newEnemyShield += value; 
               log = `>> ${actorName} [STEALTH]: SHIELD UP`;
           }
 
@@ -643,6 +648,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               playerHp: newHp,
               playerShield: newShield,
               enemyHp: newEnemyHp,
+              enemyShield: newEnemyShield,
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
               animationKey: Date.now(),
@@ -664,6 +670,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       let newEnemyHp = battleState.enemyHp;
       let newPlayerHp = battleState.playerHp;
       let newPlayerShield = battleState.playerShield;
+      let newEnemyShield = battleState.enemyShield;
       let newCdCut = Math.max(0, battleState.cdCut - 1);
       let newCdStealth = Math.max(0, battleState.cdStealth - 1);
       
@@ -672,7 +679,20 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
       if (action === 'attack') {
           const dmg = Math.floor(Math.random() * 10) + 15;
-          newEnemyHp = Math.max(0, battleState.enemyHp - dmg);
+          let damageCalc = dmg;
+          
+          // Calculate damage against enemy shield locally to match visual state
+          if (newEnemyShield > 0) {
+              if (newEnemyShield >= damageCalc) {
+                  newEnemyShield -= damageCalc;
+                  damageCalc = 0;
+              } else {
+                  damageCalc -= newEnemyShield;
+                  newEnemyShield = 0;
+              }
+          }
+          
+          newEnemyHp = Math.max(0, battleState.enemyHp - damageCalc);
           newLog = `>> ${playerName} [ATTACK]: ${dmg} DMG`;
           signalType = "ATK";
           signalValue = dmg;
@@ -685,7 +705,20 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       } else if (action === 'cut') {
           if (battleState.cdCut > 0) return;
           const dmg = Math.floor(Math.random() * 30) + 80;
-          newEnemyHp = Math.max(0, battleState.enemyHp - dmg);
+          let damageCalc = dmg;
+
+          // Calculate damage against enemy shield locally
+          if (newEnemyShield > 0) {
+              if (newEnemyShield >= damageCalc) {
+                  newEnemyShield -= damageCalc;
+                  damageCalc = 0;
+              } else {
+                  damageCalc -= newEnemyShield;
+                  newEnemyShield = 0;
+              }
+          }
+
+          newEnemyHp = Math.max(0, battleState.enemyHp - damageCalc);
           newLog = `>> ${playerName} [CUT_DATA]: ${dmg} CRITICAL`;
           newCdCut = 3;
           signalType = "CUT";
@@ -706,6 +739,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           playerHp: newPlayerHp,
           playerShield: newPlayerShield,
           enemyHp: newEnemyHp,
+          enemyShield: newEnemyShield,
           logs: [newLog, ...prev.logs].slice(0, 8),
           cdCut: newCdCut,
           cdStealth: newCdStealth,
@@ -1132,7 +1166,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                             <>
                                 <div className="flex items-center justify-center gap-1 border-b border-amber-500/50 pb-1 mb-1 text-[8px] font-black tracking-widest text-amber-500">
                                     <Crown size={10} /> CREATOR
-                                </div>
+                                    </div>
                                 <div className="font-serif italic text-xs">
                                     {myChatMsg.text.slice(8, -2)}
                                 </div>

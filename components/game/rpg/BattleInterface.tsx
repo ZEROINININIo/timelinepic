@@ -18,7 +18,7 @@ interface BattleInterfaceProps {
 const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTutorialNext, onVictoryConfirm, language, nickname, enemyName }) => {
   const { 
       playerHp, playerMaxHp, playerShield, 
-      enemyHp, enemyMaxHp, 
+      enemyHp, enemyMaxHp, enemyShield,
       logs, cdCut, cdStealth,
       tutorialStep, showVictory,
       animation, animationKey
@@ -194,12 +194,25 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                                 <span>{targetName}</span>
                                 <span>{enemyHp} / {enemyMaxHp}</span>
                             </div>
-                            <div className="h-3 w-full bg-red-950/50 border border-red-900/50">
+                            <div className="h-3 w-full bg-red-950/50 border border-red-900/50 relative">
+                                {/* HP Bar */}
                                 <div 
                                     className="h-full bg-red-600 transition-all duration-300 ease-out shadow-[0_0_10px_rgba(220,38,38,0.8)]"
                                     style={{ width: `${(enemyHp / enemyMaxHp) * 100}%` }}
                                 ></div>
+                                {/* Enemy Shield Overlay */}
+                                {enemyShield > 0 && (
+                                    <div 
+                                        className="absolute top-0 left-0 h-full bg-blue-400/60 border-r-2 border-blue-200 shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-pulse" 
+                                        style={{ width: `${Math.min(100, (enemyShield / enemyMaxHp) * 100)}%` }}
+                                    ></div>
+                                )}
                             </div>
+                            {enemyShield > 0 && (
+                                <div className="text-[9px] font-mono text-blue-300 mt-1 flex items-center justify-end gap-1">
+                                    <Shield size={8} /> {enemyShield}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

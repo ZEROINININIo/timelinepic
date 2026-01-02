@@ -7,6 +7,7 @@ export interface BattleState {
     playerShield: number;
     enemyHp: number;
     enemyMaxHp: number;
+    enemyShield: number; // Added for PvP synchronization
     logs: string[];
     // Cooldowns
     cdCut: number;
