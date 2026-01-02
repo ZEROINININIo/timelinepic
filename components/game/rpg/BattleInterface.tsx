@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { BattleState } from './types';
 import { TUTORIAL_STEPS, VICTORY_MSG } from './tutorialData';
-import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2, Terminal, Play, Hourglass } from 'lucide-react';
+import { Swords, Shield, Zap, Skull, Crosshair, Scissors, EyeOff, Activity, ChevronRight, CheckCircle2, Terminal, Play, Hourglass, Dices } from 'lucide-react';
 import { Language } from '../../../types';
 
 interface BattleInterfaceProps {
@@ -77,6 +77,24 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
       }
   };
 
+  // Check if we should show the dice overlay
+  const showDiceOverlay = ['attack', 'cut', 'heal', 'stealth', 'spike'].includes(activeEffect || '') && state.lastDiceRoll;
+
+  // Helper to get text for the overlay based on action
+  const getDiceText = (action: string, roll: number) => {
+      if (action === 'attack') {
+          return roll === 6 ? 'MAXIMUM OUTPUT x2.5' : 
+                 roll === 5 ? 'CRITICAL HIT x1.5' :
+                 roll === 1 ? 'GLANCING BLOW x0.5' :
+                 'DAMAGE MULTIPLIER APPLIED';
+      }
+      if (action === 'stealth') return 'SHIELD INTEGRITY GENERATED';
+      if (action === 'heal') return 'REPAIR EFFICIENCY';
+      if (action === 'cut') return 'OUTPUT POWER FACTOR';
+      if (action === 'spike') return 'BREACH PROBABILITY';
+      return 'QUANTUM RANDOMNESS';
+  };
+
   return (
     <div className={`absolute inset-0 z-50 flex items-center justify-center p-0 lg:p-4 font-mono select-none ${activeEffect === 'enemy_attack' ? 'animate-shake-violent' : ''}`}>
         {/* Darkened Background */}
@@ -85,6 +103,24 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
         {/* Global Damage Flash for Enemy Attack */}
         {activeEffect === 'enemy_attack' && (
             <div className="absolute inset-0 bg-red-500/20 z-50 pointer-events-none animate-pulse mix-blend-overlay"></div>
+        )}
+
+        {/* DICE ROLL OVERLAY EFFECT */}
+        {showDiceOverlay && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+                <div className="bg-black/90 border-2 border-emerald-500 p-6 rounded-lg shadow-[0_0_50px_rgba(16,185,129,0.5)] animate-bounce flex flex-col items-center backdrop-blur-md">
+                    <div className="text-[10px] font-mono text-emerald-600 mb-2 uppercase tracking-widest">
+                        QUANTUM_DICE_RESULT
+                    </div>
+                    <div className="text-6xl font-black text-emerald-400 mb-2 flex items-center gap-4">
+                        <Dices size={48} className="animate-spin-slow opacity-50" />
+                        {state.lastDiceRoll}
+                    </div>
+                    <div className="text-xs font-mono text-emerald-300 bg-emerald-950/50 px-3 py-1 border border-emerald-500/30">
+                        {getDiceText(activeEffect || '', state.lastDiceRoll || 0)}
+                    </div>
+                </div>
+            </div>
         )}
 
         {/* Hidden Cheat Input Overlay */}
@@ -336,8 +372,8 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                                     ${highlightBtn === 'attack' ? 'border-emerald-400 bg-emerald-900/20 shadow-[0_0_15px_rgba(52,211,153,0.3)] animate-pulse' : 'border-ash-gray/30 hover:bg-ash-dark text-ash-light'}
                                 `}
                             >
-                                <Crosshair size={16} />
-                                <span className="text-[10px] font-bold">ATTACK</span>
+                                <Dices size={16} />
+                                <span className="text-[10px] font-bold">ROLL ATK</span>
                             </button>
 
                             <button 

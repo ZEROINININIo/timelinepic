@@ -20,4 +20,5 @@ export interface BattleState {
     // Visual Effects
     animation?: 'attack' | 'heal' | 'cut' | 'stealth' | 'spike' | 'enemy_attack';
     animationKey?: number;
+    lastDiceRoll?: number; // Result of the last attack dice roll
 }

@@ -77,6 +77,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [isOnline, setIsOnline] = useState(false);
   const [showPlayerList, setShowPlayerList] = useState(false);
   
+  // Player Buffer for Anti-Flicker
+  const playersBufferRef = useRef<Map<string, RemotePlayer & { localLastSeen: number }>>(new Map());
+  
   // Duplicate Name Prevention
   const [isDuplicateNameDetected, setIsDuplicateNameDetected] = useState(false);
   const [duplicateNameAlert, setDuplicateNameAlert] = useState(false); // To show UI modal
@@ -222,10 +225,30 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                       return;
                   }
 
+                  // --- BUFFER LOGIC TO PREVENT FLICKERING ---
+                  const now = Date.now();
+                  
+                  // 1. Update Buffer with new data
+                  data.forEach(p => {
+                      playersBufferRef.current.set(p.id, { ...p, localLastSeen: now });
+                  });
+
+                  // 2. Prune Stale Data (> 6000ms - 3 heartbeats miss allowance)
+                  const expiration = 6000;
+                  for (const [id, p] of playersBufferRef.current.entries()) {
+                      if (now - p.localLastSeen > expiration) {
+                          playersBufferRef.current.delete(id);
+                      }
+                  }
+
+                  // 3. Update State from Buffer
+                  const bufferedPlayers = Array.from(playersBufferRef.current.values());
                   setIsOnline(true);
-                  setOtherPlayers(data);
+                  setOtherPlayers(bufferedPlayers);
               }
           } else {
+              // Only go offline if we really can't reach server, but maybe keep ghosts for a bit?
+              // For now, strict offline if heartbeat fails HTTP check.
               setIsOnline(false);
           }
       } catch (e) {
@@ -732,14 +755,27 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       let newCdRepair = Math.max(0, battleState.cdRepair - 1);
       let newCdSpike = Math.max(0, battleState.cdSpike - 1);
       
+      // Dice Logic
+      const dice = Math.floor(Math.random() * 6) + 1;
+      let diceRollValue: number | undefined = dice;
+      
       let signalType = "";
       let signalValue = 0;
 
       if (action === 'attack') {
-          const dmg = Math.floor(Math.random() * 5) + 20; // 20-25
+          let mult = 1.0;
+          let flavor = "HIT";
+          if (dice === 1) { mult = 0.5; flavor = "GLANCE"; }
+          else if (dice === 2) { mult = 0.8; flavor = "WEAK"; }
+          else if (dice === 3) { mult = 1.0; flavor = "HIT"; }
+          else if (dice === 4) { mult = 1.2; flavor = "GOOD"; }
+          else if (dice === 5) { mult = 1.5; flavor = "CRIT"; }
+          else if (dice === 6) { mult = 2.5; flavor = "MAX!!"; }
+
+          const baseDmg = 30; // Increased base damage to shorten battles
+          const dmg = Math.floor(baseDmg * mult);
           let damageCalc = dmg;
           
-          // Calculate damage against enemy shield locally to match visual state
           if (newEnemyShield > 0) {
               if (newEnemyShield >= damageCalc) {
                   newEnemyShield -= damageCalc;
@@ -751,23 +787,24 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           }
           
           newEnemyHp = Math.max(0, battleState.enemyHp - damageCalc);
-          newLog = `>> ${playerName} [ATTACK]: ${dmg} DMG`;
+          newLog = `>> [DICE:${dice}] ${flavor}: ${dmg} DMG`;
           signalType = "ATK";
           signalValue = dmg;
       } else if (action === 'heal') {
           if (battleState.cdRepair > 0) return;
-          const heal = 50; // Fixed heal
+          // Randomized Heal: Dice * 10 + 10 (Range: 20-70, Avg: 45)
+          const heal = dice * 10 + 10;
           newPlayerHp = Math.min(battleState.playerMaxHp, battleState.playerHp + heal);
-          newLog = `>> ${playerName} [REPAIR]: +${heal} HP`;
+          newLog = `>> [DICE:${dice}] REPAIR: +${heal} HP`;
           newCdRepair = 3;
           signalType = "HEAL";
           signalValue = heal;
       } else if (action === 'cut') {
           if (battleState.cdCut > 0) return;
-          const dmg = Math.floor(Math.random() * 10) + 65; // 65-75
+          // Randomized Heavy Attack: Base 50 + Dice * 15 (Range: 65-140)
+          const dmg = 50 + (dice * 15);
           let damageCalc = dmg;
 
-          // Calculate damage against enemy shield locally
           if (newEnemyShield > 0) {
               if (newEnemyShield >= damageCalc) {
                   newEnemyShield -= damageCalc;
@@ -779,24 +816,26 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           }
 
           newEnemyHp = Math.max(0, battleState.enemyHp - damageCalc);
-          newLog = `>> ${playerName} [CUT_DATA]: ${dmg} CRITICAL`;
+          newLog = `>> [DICE:${dice}] CUT_DATA: ${dmg} DMG`;
           newCdCut = 4;
           signalType = "CUT";
           signalValue = dmg;
       } else if (action === 'stealth') {
           if (battleState.cdStealth > 0) return;
-          const shieldGain = 75;
+          // Randomized Shield: Dice * 20 (Range: 20-120, Avg: 70)
+          const shieldGain = dice * 20;
           newPlayerShield += shieldGain;
-          newLog = `>> ${playerName} [DATA_STEALTH]: +${shieldGain} ARMOR`;
+          newLog = `>> [DICE:${dice}] SHIELD: +${shieldGain}`;
           newCdStealth = 4;
           signalType = "STL";
           signalValue = shieldGain;
       } else if (action === 'spike') {
           if (battleState.cdSpike > 0) return;
-          const dmg = 30; // Fixed dmg
+          // Randomized Spike: Shield Break + Dice * 8 DMG (Range: 8-48)
+          const dmg = dice * 8;
           newEnemyShield = 0; // Break Shield
-          newEnemyHp = Math.max(0, battleState.enemyHp - dmg); // Direct dmg
-          newLog = `>> ${playerName} [DATA_SPIKE]: SHIELD BREAK & ${dmg} DMG`;
+          newEnemyHp = Math.max(0, battleState.enemyHp - dmg); 
+          newLog = `>> [DICE:${dice}] BREAK: ${dmg} DMG`;
           newCdSpike = 3;
           signalType = "SPIKE";
           signalValue = dmg;
@@ -816,7 +855,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           cdSpike: newCdSpike,
           animation: action,
           animationKey: Date.now(),
-          turn: pvpTarget ? 'enemy' : 'enemy' // Pass turn to enemy
+          turn: pvpTarget ? 'enemy' : 'enemy', // Pass turn to enemy
+          lastDiceRoll: diceRollValue // Update dice roll result
       }) : null);
 
       // --- SEND SIGNAL IF PVP ---
