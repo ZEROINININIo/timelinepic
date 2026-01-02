@@ -144,7 +144,7 @@ const Navigation: React.FC<NavigationProps> = ({
             NOVA<br/>LABS
           </h1>
           <div className="text-[10px] text-ash-gray font-custom-02 bg-ash-dark p-1 inline-block border border-ash-gray">
-            ARCHIVE_SYS // TL.1.19-J
+            ARCHIVE_SYS // TL.1.19-K
           </div>
         </div>
 
@@ -303,7 +303,7 @@ const Navigation: React.FC<NavigationProps> = ({
                         <Settings size={16} className="text-ash-light" />
                         <span className="text-xs font-bold text-ash-light font-mono uppercase tracking-wider">{t.config}</span>
                     </div>
-                    <div className="text-[10px] text-ash-gray font-mono">TL.1.19-J</div>
+                    <div className="text-[10px] text-ash-gray font-mono">TL.1.19-K</div>
                 </div>
                 
                 <div className="flex flex-col gap-3 landscape:grid landscape:grid-cols-2">
@@ -424,7 +424,7 @@ const Navigation: React.FC<NavigationProps> = ({
                 <div className="mt-10 pt-6 border-t border-dashed border-ash-gray/30 flex justify-between items-center relative z-10">
                     <div className="text-[10px] font-mono text-ash-gray">
                         SYSTEM_BUILD: 2025.12.30<br/>
-                        ARCHIVE_VER: TL.1.19-J
+                        ARCHIVE_VER: TL.1.19-K
                     </div>
                     <button 
                         onClick={() => setShowDesktopSettings(false)}

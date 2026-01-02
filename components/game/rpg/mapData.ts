@@ -20,7 +20,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Center Pedestal - LOGO
+    // Center Pedestal - LOGO (M-02)
     { 
         id: 'exhibit-logo', 
         x: 480, y: 350, 
@@ -28,7 +28,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'NOVA_CORE', 
         color: 'text-ash-light',
-        imageUrl: 'https://free.picui.cn/free/2025/12/08/6936e856897d6.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4ba5f8.png',
         description: {
             'zh-CN': 'Nova Labs 标识 ',
             'zh-TW': 'Nova Labs 標識 ',
@@ -36,7 +36,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
     
-    // Top Right Corner - Zeri Maid
+    // Top Right Corner - Zeri Maid (M-03)
     { 
         id: 'exhibit-zeri', 
         x: 850, y: 100, 
@@ -44,7 +44,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ENCRYPTED_FILE', 
         color: 'text-fuchsia-400',
-        imageUrl: 'https://free.picui.cn/free/2025/12/13/693ce46f44fd2.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957ea205a138.jpg',
         description: {
             'zh-CN': '黑历史数据 // 绝对机密 、零点最终还是找回了这张图片。',
             'zh-TW': '黑歷史數據 // 絕對機密 ',
@@ -52,7 +52,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Top Left - Byaki Avatar (Updated with Hint)
+    // Top Left - Byaki Avatar (M-01)
     { 
         id: 'exhibit-byaki', 
         x: 280, y: 150, 
@@ -60,7 +60,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'BYAKI_TERM', 
         color: 'text-emerald-400',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b509851e.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e22304e.png',
         description: {
             'zh-CN': '白栖的终端头像数据 // 记录于档案建立之初。\n\n> 备注：总觉得左边的这堵墙后面...好像有谁在喝茶的声音？',
             'zh-TW': '白栖的終端頭像數據 // 記錄於檔案建立之初。\n\n> 備註：總覺得左邊的這堵牆後面...好像有誰在喝茶的聲音？',
@@ -68,7 +68,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Left Middle - Point Standard
+    // Left Middle - Point Standard (M-04)
     { 
         id: 'exhibit-point', 
         x: 300, y: 450, 
@@ -76,7 +76,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_STD', 
         color: 'text-blue-400',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/69514ed472fda.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4c8380.png',
         description: {
             'zh-CN': '零点 // 标准记录影像。',
             'zh-TW': '零點 // 標準記錄影像。',
@@ -84,7 +84,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Bottom Right - Dusk Watch
+    // Bottom Right - Dusk Watch (M-05)
     { 
         id: 'exhibit-watch', 
         x: 850, y: 650, 
@@ -92,7 +92,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'MEM_WATCH', 
         color: 'text-ash-gray',
-        imageUrl: 'https://free.picui.cn/free/2025/12/12/693b069e37e26.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4c8380.png',
         description: {
             'zh-CN': '暮雨的怀表 // “宁静地思考”。',
             'zh-TW': '暮雨的懷錶 // “寧靜地思考”。',
@@ -102,7 +102,7 @@ export const MAP_OBJECTS: RPGObject[] = [
 
     // --- OFFICIAL COMMUNITY GALLERY (Was Fan Art Sector) ---
     
-    // Center Left - Point Main V2
+    // Center Left - Point Main V2 (O-01)
     { 
         id: 'exhibit-point-main-v2', 
         x: 1330, y: 380, 
@@ -110,7 +110,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_V2', 
         color: 'text-blue-300',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d2121e8.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e3e2ac7.png',
         description: {
             'zh-CN': '零点 (Main Ver.) // 另一种姿态记录。',
             'zh-TW': '零點 (Main Ver.) // 另一種姿態記錄。',
@@ -129,14 +129,14 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZELO_PYO', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/6951401cc2492.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e31300d.png',
         description: {
             'zh-CN': '泽洛和普忧 // 温馨的日常一刻。',
             'zh-TW': '澤洛和普憂 // 溫馨的日常一刻。',
             'en': 'Zelo & Pyo // A heartwarming daily moment.'
         }
     },
-    // New Exhibit: Fumofumo Zelo (Official)
+    // New Exhibit: Fumofumo Zelo (Official) (O-03)
     { 
         id: 'exhibit-fumofumo-zelo', 
         x: 1320, y: 180, 
@@ -144,7 +144,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'FUMOFUMO_Z', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2026/01/01/69566fa7cdf8f.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e337f8e.jpg',
         description: {
             'zh-CN': 'Fumofumo 泽洛 // 毛茸茸的可爱。',
             'zh-TW': 'Fumofumo 澤洛 // 毛茸茸的可愛。',
@@ -158,7 +158,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'STAR_VIS', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141ce09665.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e288206.jpg',
         description: {
             'zh-CN': '来自星星 (After Ver.) // 仰望星空。',
             'zh-TW': '來自星星 (After Ver.) // 仰望星空。',
@@ -172,7 +172,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZELO_AFT', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141ce7c80e.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e31285b.jpg',
         description: {
             'zh-CN': 'After 泽洛 // 时间线变动后的记录。',
             'zh-TW': 'After 澤洛 // 時間線變動後的記錄。',
@@ -186,7 +186,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_M', 
         color: 'text-blue-300',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d14b818.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e437a08.png',
         description: {
             'zh-CN': '零点 (Main Ver.) // 初始设定。',
             'zh-TW': '零點 (Main Ver.) // 初始設定。',
@@ -203,7 +203,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'GRP_ZELO', 
         color: 'text-amber-300',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d39388a.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e34fb61.jpg',
         description: {
             'zh-CN': '群友泽洛 (After Ver.) // 社区创作。',
             'zh-TW': '群友澤洛 (After Ver.) // 社區創作。',
@@ -217,7 +217,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'FUR_ZELO', 
         color: 'text-amber-500',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d31a0d3.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e2bcec4.jpg',
         description: {
             'zh-CN': 'Furry 泽洛 (After Ver.) // 毛茸茸的变体。',
             'zh-TW': 'Furry 澤洛 (After Ver.) // 毛茸茸的變體。',
@@ -231,7 +231,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'CRAFT_Z', 
         color: 'text-pink-300',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141d45e52a.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e42ae78.jpg',
         description: {
             'zh-CN': '泽洛小手工 // 特别感谢 uuz。',
             'zh-TW': '澤洛小手工 // 特別感謝 uuz。',
@@ -245,7 +245,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'FUR_SEC', 
         color: 'text-amber-600',
-        imageUrl: 'https://cdn.zeroxv.cn/sc/d963.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e2e15a5.jpg',
         description: {
             'zh-CN': 'Furry 泽洛 (二次设定) // 另一种可能。',
             'zh-TW': 'Furry 澤洛 (二次設定) // 另一種可能。',
@@ -259,7 +259,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'CUTE_PT', 
         color: 'text-blue-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/695141ce69502.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e23a001.jpg',
         description: {
             'zh-CN': '萌萌零点 // 可爱暴击。',
             'zh-TW': '萌萌零點 // 可愛暴擊。',
@@ -269,7 +269,7 @@ export const MAP_OBJECTS: RPGObject[] = [
 
     // --- UNOFFICIAL COMMUNITY GALLERY (New Sector) ---
     
-    // Moved from Official: Fumo Zelo
+    // Moved from Official: Fumo Zelo (U-01)
     { 
         id: 'exhibit-fumo-zelo', 
         x: 2000, y: 380, 
@@ -277,7 +277,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'FUMO_ZELO', 
         color: 'text-amber-200',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/6951403272a00.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e3b7027.png',
         description: {
             'zh-CN': 'fumo泽洛 (After Ver.) // 软乎乎的。',
             'zh-TW': 'fumo澤洛 (After Ver.) // 軟乎乎的。',
@@ -285,7 +285,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // First Entry: Zeri by mor
+    // First Entry: Zeri by mor (U-02)
     { 
         id: 'exhibit-zeri-mor', 
         x: 2150, y: 380, 
@@ -293,7 +293,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZERI_MOR', 
         color: 'text-pink-300',
-        imageUrl: 'https://free.picui.cn/free/2026/01/01/69566c8fdea59.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8ff564b6.jpg',
         description: {
             'zh-CN': '芷漓 (By mor) // 非官方社区图集。',
             'zh-TW': '芷漓 (By mor) // 非官方社區圖集。',
@@ -311,7 +311,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'npc', 
         label: 'PYO', 
         color: 'text-indigo-300',
-        imageUrl: 'https://free.picui.cn/free/2026/01/01/69567c58abbc0.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e47e894.png',
         description: {
             'zh-CN': '我是星图馆代理馆长普忧。在这里，你可以回到来时的站点，服务是免费的，不用客气。',
             'zh-TW': '我是星圖館代理館長普憂。在這裡，你可以回到來時的站點，服務是免費的，不用客氣。',

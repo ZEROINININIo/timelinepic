@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban, Crown, AlertOctagon } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, Crown } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -10,6 +10,8 @@ import { TUTORIAL_STEPS } from './rpg/tutorialData';
 import AssetLoader from './rpg/AssetLoader';
 import MapRenderer from './rpg/MapRenderer';
 import BattleInterface from './rpg/BattleInterface';
+import RemotePlayersLayer from './rpg/RemotePlayersLayer';
+import GameUI from './rpg/GameUI';
 
 // API Configuration
 const API_URL = 'https://cdn.zeroxv.cn/nova_api/api.php';
@@ -35,7 +37,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const playerPosRef = useRef<RPGPosition>({ x: 500, y: 700 });
   const worldRef = useRef<HTMLDivElement>(null);
   const playerElemRef = useRef<HTMLDivElement>(null);
-  const hudPosRef = useRef<HTMLDivElement>(null);
+  const hudPosRef = useRef<HTMLDivElement>(null); // Kept for logic if needed, though prop drilling handles display
   
   // Secret Room Overlay Ref
   const teaRoomOverlayRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [viewingExhibit, setViewingExhibit] = useState<RPGObject | null>(null);
   const [pendingLink, setPendingLink] = useState<{ url: string, title: string } | null>(null);
   const [direction, setDirection] = useState<'up'|'down'|'left'|'right'>('up');
+  const [playerPosState, setPlayerPosState] = useState({ x: 500, y: 700 }); // synced occasionally for UI
   
   // Battle State
   const [battleState, setBattleState] = useState<BattleState | null>(null);
@@ -181,8 +184,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   useEffect(() => {
       if (myChatMsg) {
           const timer = setTimeout(() => {
-              // Only clear visible text bubbles locally. Protocol messages (starts with [[) are cleared by next heartbeat implicitly or action logic.
-              // EXCEPTION: ROOT messages are visible chat, so they should expire.
               if (!myChatMsg.text.startsWith('[[') || myChatMsg.text.startsWith('[[ROOT::')) {
                   setMyChatMsg(null);
               }
@@ -193,10 +194,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- MULTIPLAYER HEARTBEAT & SYNC ---
   const sendHeartbeat = useCallback(async () => {
-      // Prevent connection during preload OR if tutorial enemy is still active (Single Player Mode)
-      // Also prevent if duplicate name detected
       if (isPreloading || !isEnemyDefeatedRef.current || isDuplicateNameDetected) {
-          // Even if we don't send, we should schedule next check
           heartbeatTimerRef.current = setTimeout(sendHeartbeat, IDLE_HEARTBEAT);
           return;
       }
@@ -234,15 +232,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                       return; // Stop heartbeat loop
                   }
 
-                  // --- BUFFER LOGIC TO PREVENT FLICKERING ---
                   const now = Date.now();
-                  
-                  // 1. Update Buffer with new data
                   data.forEach(p => {
                       playersBufferRef.current.set(p.id, { ...p, localLastSeen: now });
                   });
 
-                  // 2. Prune Stale Data (> 6000ms - 3 heartbeats miss allowance)
                   const expiration = 6000;
                   for (const [id, p] of playersBufferRef.current.entries()) {
                       if (now - p.localLastSeen > expiration) {
@@ -250,7 +244,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                       }
                   }
 
-                  // 3. Update State from Buffer
                   const bufferedPlayers = Array.from(playersBufferRef.current.values());
                   setIsOnline(true);
                   setOtherPlayers(bufferedPlayers);
@@ -262,8 +255,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           console.warn("Heartbeat failed", e);
           setIsOnline(false);
       } finally {
-          // Schedule next heartbeat based on State
-          // If in battle OR invite pending -> FAST POLLING
           const isHighAlert = battleState?.active || pvpInvite !== null || (myChatMsg?.text && myChatMsg.text.startsWith('[[DUEL_REQ'));
           const interval = isHighAlert ? COMBAT_HEARTBEAT : IDLE_HEARTBEAT;
           
@@ -278,37 +269,30 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       return () => {
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       };
-  }, []); // Run once on mount, then recursive
+  }, []); 
 
   // --- INCOMING SIGNAL PROCESSOR (Chat, Invite, Battle) ---
   useEffect(() => {
       if (processedOtherPlayers.length > 0) {
           const myId = sessionIdRef.current;
 
-          // 1. Check for Invites (Receiver)
           const invite = processedOtherPlayers.find(p => p.msg === `[[DUEL_REQ::${myId}]]`);
           if (invite && !battleState?.active && !pvpInvite && !ignoredInvitesRef.current.has(invite.id)) {
               setPvpInvite(invite);
           }
 
-          // 2. Check for Accept (Sender)
           const accept = processedOtherPlayers.find(p => p.msg === `[[DUEL_ACC::${myId}]]`);
           if (accept && !battleState?.active && !ignoredInvitesRef.current.has(accept.id)) {
-              // Sender receives Accept -> Sender goes SECOND (turn: enemy)
               startPvPBattle(accept, false); 
-              setMyChatMsg(null); // Clear my invite
+              setMyChatMsg(null); 
           }
 
-          // 2.5 Implicit Accept (Sender Failsafe)
-          // If I am requesting a duel, and the target sends an ACT or HEAL etc., they accepted but I missed the DUEL_ACC msg
           if (!battleState?.active && myChatMsg?.text.startsWith('[[DUEL_REQ')) {
-              // Extract target ID from my request [[DUEL_REQ::TARGET_ID]]
               const targetIdMatch = myChatMsg.text.match(/\[\[DUEL_REQ::(.*?)\]\]/);
               if (targetIdMatch) {
                   const targetId = targetIdMatch[1];
                   const opponent = processedOtherPlayers.find(p => p.id === targetId);
                   
-                  // If opponent is sending battle signals, START BATTLE
                   if (opponent && opponent.msg && (opponent.msg.startsWith('[[ACT') || opponent.msg.startsWith('[[DUEL_ACC'))) {
                       startPvPBattle(opponent, false);
                       setMyChatMsg(null);
@@ -316,24 +300,18 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               }
           }
 
-          // 3. Check for Reject (Sender)
           const reject = processedOtherPlayers.find(p => p.msg === `[[DUEL_REJ::${myId}]]`);
           if (reject && myChatMsg?.text?.includes(reject.id) && myChatMsg.text.startsWith('[[DUEL_REQ')) {
                setMyChatMsg(null);
                alert(`${reject.nickname} rejected your duel request.`);
           }
 
-          // 4. Check for Combat Actions (If in battle)
           if (battleState?.active && pvpTarget) {
               const opponent = processedOtherPlayers.find(p => p.id === pvpTarget.id);
-              
-              // Protocol: [[ACT::TYPE::VAL::ID]]
               if (opponent && opponent.msg && opponent.msg.startsWith('[[ACT::')) {
                   const match = opponent.msg.match(/\[\[ACT::(.*?)::(.*?)::(.*?)\]\]/);
                   if (match) {
                       const [_, type, valStr, actionId] = match;
-                      
-                      // Check if this is a new action we haven't processed
                       if (actionId !== lastProcessedActionIdRef.current) {
                           lastProcessedActionIdRef.current = actionId;
                           handleIncomingBattleAction(type, parseInt(valStr), opponent.nickname);
@@ -348,8 +326,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   useEffect(() => {
       if (pvpInvite) {
           const inviter = processedOtherPlayers.find(p => p.id === pvpInvite.id);
-          // If inviter is gone OR inviter is no longer sending the specific request msg
-          // AND inviter is not already in battle (sending ACT)
           if (!inviter || (inviter.msg !== `[[DUEL_REQ::${sessionIdRef.current}]]` && !inviter.msg?.startsWith('[[ACT'))) {
               setPvpInvite(null); 
           }
@@ -386,7 +362,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       const assets = MAP_OBJECTS.filter(obj => obj.imageUrl);
-      assets.push({ id: 'npc-tea-asset', type: 'npc', x:0, y:0, width:0, height:0, imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png' });
+      assets.push({ id: 'npc-tea-asset', type: 'npc', x:0, y:0, width:0, height:0, imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e438965.png' });
 
       if (assets.length === 0) {
           setIsPreloading(false);
@@ -478,7 +454,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               width: 40, height: 40,
               type: 'npc',
               label: 'TEA',
-              imageUrl: 'https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png',
+              imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e438965.png',
           } as RPGObject;
       }
 
@@ -505,7 +481,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           const msg = `[[DUEL_REQ::${nearbyPlayer.id}]]`;
           setMyChatMsg({ text: msg, ts: Date.now() });
           
-          // Force immediate push to server
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat();
           
@@ -517,11 +492,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (pvpInvite) {
           setMyChatMsg({ text: `[[DUEL_ACC::${pvpInvite.id}]]`, ts: Date.now() });
           
-          // Force immediate push
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat(); 
           
-          // Receiver goes FIRST (Turn = player)
           startPvPBattle(pvpInvite, true);
           setPvpInvite(null);
       }
@@ -529,19 +502,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   const rejectPvP = () => {
       if (pvpInvite) {
-          // Send Rejection Signal
           const rejMsg = `[[DUEL_REJ::${pvpInvite.id}]]`;
           setMyChatMsg({ text: rejMsg, ts: Date.now() });
           
-          // Force push
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat();
 
-          // Ignore this player's invites temporarily to prevent loop
           ignoredInvitesRef.current.add(pvpInvite.id);
           setTimeout(() => {
               ignoredInvitesRef.current.delete(pvpInvite.id);
-          }, 10000); // 10 seconds ignore
+          }, 10000); 
 
           setPvpInvite(null);
       }
@@ -549,15 +519,12 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   const cancelPvPInvite = () => {
       setMyChatMsg(null);
-      // Force push
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       sendHeartbeat();
   };
 
-  // Helper to cleanup PvP State after match (Win or Lose)
   const cleanupPvPState = () => {
       if (pvpTarget) {
-          // Ignore this opponent for 15 seconds to prevent accidental re-engagement loop
           ignoredInvitesRef.current.add(pvpTarget.id);
           setTimeout(() => {
               ignoredInvitesRef.current.delete(pvpTarget.id);
@@ -565,21 +532,18 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
       setPvpTarget(null);
       setBattleState(null);
-      setMyChatMsg(null); // Clear any combat signals
+      setMyChatMsg(null); 
       
-      // Reset polling speed
       if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       sendHeartbeat();
   };
 
   const loseBattle = () => {
       if (pvpTarget) {
-          // PvP Loss - Send Surrender Signal just in case
           const uniqueId = Date.now();
           const loseMsg = `[[ACT::LOSE::0::${uniqueId}]]`;
           setMyChatMsg({ text: loseMsg, ts: uniqueId });
           
-          // Force push
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat();
 
@@ -587,7 +551,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           alert("DEFEAT: You have been marked as defeated.");
           cleanupPvPState();
       } else {
-          // PvE Loss
           setBattleState(null);
           playerPosRef.current = { x: 500, y: 700 };
           if (playerElemRef.current) playerElemRef.current.style.transform = `translate3d(500px, 700px, 0)`;
@@ -643,7 +606,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           let newShield = prev.playerShield;
           let anim: BattleState['animation'] = undefined;
 
-          // Simple AI: 30% chance heavy attack, 70% normal
           if (Math.random() > 0.7) {
               dmg = 35;
               log = '>> WARNING: HIGH ENERGY SIGNATURE DETECTED';
@@ -674,7 +636,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               ...prev,
               playerHp: newHp,
               playerShield: newShield,
-              enemyShield: prev.enemyShield, // PvE Enemy shield logic usually simple, keep ref
+              enemyShield: prev.enemyShield, 
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
               animationKey: Date.now(),
@@ -683,7 +645,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       });
   };
 
-  // isMyTurn param determines who acts first
   const startPvPBattle = (opponent: RemotePlayer, isMyTurn: boolean = false) => {
       setPvpTarget(opponent);
       setBattleState({
@@ -708,18 +669,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       keysPressed.current.clear();
   };
 
-  // --- INCOMING BATTLE ACTION HANDLER ---
   const handleIncomingBattleAction = (type: string, value: number, actorName: string) => {
       if (!battleState) return;
 
-      // Handle explicit End Game signals first
       if (type === 'WIN') {
-          // Opponent claims they won -> I lost
           loseBattle();
           return;
       }
       if (type === 'LOSE') {
-          // Opponent admits defeat -> I win
           setBattleState(prev => prev ? ({ ...prev, showVictory: true, enemyHp: 0, logs: [`>> ${actorName} SIGNAL LOST`, ...prev.logs].slice(0, 8) }) : null);
           return;
       }
@@ -735,7 +692,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           let anim: BattleState['animation'] = undefined;
 
           if (type === 'ATK' || type === 'CUT') {
-              // Opponent attacked ME (We update OUR stats)
               let damage = value;
               if (newShield > 0) {
                   if (newShield >= damage) {
@@ -750,24 +706,20 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               log = `>> ${actorName} [ATTACK]: ${value} DMG`;
               anim = 'enemy_attack';
               
-              // Check Defeat locally (failsafe, though attacker usually sends WIN)
               if (newHp <= 0) setTimeout(loseBattle, 1000);
 
           } else if (type === 'SPIKE') {
-              // Opponent used SPIKE (Break Shield + DMG)
               let damage = value;
-              newShield = 0; // Shield Broken!
+              newShield = 0; 
               newHp = Math.max(0, newHp - damage);
               log = `>> ${actorName} [DATA_SPIKE]: SHIELD BROKEN & ${value} DMG`;
               anim = 'enemy_attack';
               if (newHp <= 0) setTimeout(loseBattle, 1000);
 
           } else if (type === 'HEAL') {
-              // Opponent healed themselves. Update their Phantom HP on my screen.
               newEnemyHp = Math.min(prev.enemyMaxHp, prev.enemyHp + value);
               log = `>> ${actorName} [REPAIR]: +${value} HP`;
           } else if (type === 'STL') {
-              // Opponent used shield. Update their Phantom Shield.
               newEnemyShield += value; 
               log = `>> ${actorName} [STEALTH]: SHIELD UP`;
           }
@@ -781,16 +733,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
               animationKey: Date.now(),
-              turn: 'player' // Opponent moved, now IT IS MY TURN
+              turn: 'player' 
           };
       });
   };
 
-  // --- LOCAL BATTLE ACTION (Sending) ---
   const battleAction = (action: 'attack' | 'heal' | 'cut' | 'stealth' | 'spike') => {
       if (!battleState) return;
       
-      // Strict Turn Check for PvP
       if (pvpTarget && battleState.turn !== 'player') {
           return; 
       }
@@ -805,7 +755,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       let newCdRepair = Math.max(0, battleState.cdRepair - 1);
       let newCdSpike = Math.max(0, battleState.cdSpike - 1);
       
-      // Dice Logic
       const dice = Math.floor(Math.random() * 6) + 1;
       let diceRollValue: number | undefined = dice;
       
@@ -822,7 +771,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           else if (dice === 5) { mult = 1.5; flavor = "CRIT"; }
           else if (dice === 6) { mult = 2.5; flavor = "MAX!!"; }
 
-          const baseDmg = 30; // Increased base damage to shorten battles
+          const baseDmg = 30; 
           const dmg = Math.floor(baseDmg * mult);
           let damageCalc = dmg;
           
@@ -842,7 +791,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalValue = dmg;
       } else if (action === 'heal') {
           if (battleState.cdRepair > 0) return;
-          // Randomized Heal: Dice * 10 + 10 (Range: 20-70, Avg: 45)
           const heal = dice * 10 + 10;
           newPlayerHp = Math.min(battleState.playerMaxHp, battleState.playerHp + heal);
           newLog = `>> [DICE:${dice}] REPAIR: +${heal} HP`;
@@ -851,7 +799,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalValue = heal;
       } else if (action === 'cut') {
           if (battleState.cdCut > 0) return;
-          // Randomized Heavy Attack: Base 50 + Dice * 15 (Range: 65-140)
           const dmg = 50 + (dice * 15);
           let damageCalc = dmg;
 
@@ -872,7 +819,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalValue = dmg;
       } else if (action === 'stealth') {
           if (battleState.cdStealth > 0) return;
-          // Randomized Shield: Dice * 20 (Range: 20-120, Avg: 70)
           const shieldGain = dice * 20;
           newPlayerShield += shieldGain;
           newLog = `>> [DICE:${dice}] SHIELD: +${shieldGain}`;
@@ -881,9 +827,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalValue = shieldGain;
       } else if (action === 'spike') {
           if (battleState.cdSpike > 0) return;
-          // Randomized Spike: Shield Break + Dice * 8 DMG (Range: 8-48)
           const dmg = dice * 8;
-          newEnemyShield = 0; // Break Shield
+          newEnemyShield = 0; 
           newEnemyHp = Math.max(0, battleState.enemyHp - dmg); 
           newLog = `>> [DICE:${dice}] BREAK: ${dmg} DMG`;
           newCdSpike = 3;
@@ -891,7 +836,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           signalValue = dmg;
       }
 
-      // Update Local UI
       setBattleState(prev => prev ? ({
           ...prev,
           playerHp: newPlayerHp,
@@ -905,28 +849,24 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           cdSpike: newCdSpike,
           animation: action,
           animationKey: Date.now(),
-          turn: pvpTarget ? 'enemy' : 'enemy', // Pass turn to enemy
-          lastDiceRoll: diceRollValue // Update dice roll result
+          turn: pvpTarget ? 'enemy' : 'enemy', 
+          lastDiceRoll: diceRollValue 
       }) : null);
 
-      // --- SEND SIGNAL IF PVP ---
       if (pvpTarget) {
           const uniqueId = Date.now();
           const protocolMsg = `[[ACT::${signalType}::${signalValue}::${uniqueId}]]`;
           setMyChatMsg({ text: protocolMsg, ts: uniqueId });
           
-          // Force immediate push to server for responsiveness
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat(); 
 
           if (newEnemyHp <= 0) {
-              // If I defeated the enemy locally, send a WIN signal to force their defeat
               setTimeout(() => {
                   const winId = Date.now() + 10;
                   const winMsg = `[[ACT::WIN::0::${winId}]]`;
                   setMyChatMsg({ text: winMsg, ts: winId });
                   
-                  // Force push win state
                   if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
                   sendHeartbeat();
                   
@@ -934,7 +874,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               }, 500);
           }
       } else {
-          // PvE Logic (Enemy Turn Automation)
           if (newEnemyHp <= 0) {
               setTimeout(() => {
                   setBattleState(prev => prev ? ({ ...prev, showVictory: true }) : null);
@@ -947,17 +886,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   const handleVictoryConfirm = () => {
       if (pvpTarget) {
-          // PvP Win
           alert("VICTORY! HONOR PRESERVED.");
           cleanupPvPState();
       } else {
-          // PvE Win - Mark Defeated & Enable Online Mode
           localStorage.setItem('nova_enemy_defeated', 'true');
           isEnemyDefeatedRef.current = true;
           setBattleState(null);
           if (enemyElemRef.current) enemyElemRef.current.style.display = 'none';
           
-          // Force immediate heartbeat to connect online now that battle is over
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat();
       }
@@ -968,7 +904,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (chatInputValue.trim()) {
           let msg = chatInputValue.trim();
           
-          // Hidden Author Command
           if (msg.startsWith('/root ')) {
               msg = `[[ROOT::${msg.slice(6)}]]`;
           }
@@ -977,7 +912,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           setChatInputValue("");
           setShowChatInput(false);
           
-          // Push update immediately
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat(); 
       }
@@ -1007,7 +941,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           }
       } else if (activeObj.type === 'npc') {
           if (activeObj.id === 'npc-tea') {
-              if (teaStage < 4) { // 4 is hardcoded length of teaDialogues
+              if (teaStage < 4) { 
                   setMyChatMsg({ text: `[TEA]: ${teaDialogues[teaStage]}`, ts: Date.now() });
                   setTeaStage(prev => prev + 1);
               } else {
@@ -1068,6 +1002,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           if (checkCollision(nextX, nextY)) nextY = playerPosRef.current.y;
 
           playerPosRef.current = { x: nextX, y: nextY };
+          
+          // Throttled State Update for HUD UI (performance optimization)
+          if (Math.random() > 0.8) setPlayerPosState({ x: nextX, y: nextY });
 
           if (playerElemRef.current) {
               playerElemRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
@@ -1076,9 +1013,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               const vx = window.innerWidth/2 - nextX - PLAYER_SIZE/2;
               const vy = window.innerHeight/2 - nextY - PLAYER_SIZE/2;
               worldRef.current.style.transform = `translate3d(${vx}px, ${vy}px, 0)`;
-          }
-          if (hudPosRef.current) {
-              hudPosRef.current.innerText = `POS: ${Math.round(nextX)}, ${Math.round(nextY)}`;
           }
 
           // Object Interaction
@@ -1107,7 +1041,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       // Tea NPC Follow Logic
-      // Check if ANY remote player has Tea
       const remoteTeaOwner = processedOtherPlayers.find(p => p.tea);
       
       let targetTeaX = 80; // Default Spawn
@@ -1135,12 +1068,12 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           const distance = Math.sqrt(distX * distX + distY * distY);
           
           if (distance > 60) {
-              const moveSpeed = SPEED * 0.95; // Slightly slower
+              const moveSpeed = SPEED * 0.95; 
               teaPosRef.current.x += (distX / distance) * moveSpeed;
               teaPosRef.current.y += (distY / distance) * moveSpeed;
           }
       } else {
-          // Return to spawn gradually if no one owns it
+          // Return to spawn
           const sx = 80;
           const sy = 150;
           const distX = sx - teaPosRef.current.x;
@@ -1213,86 +1146,18 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         <div className="fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(50,50,50,0.1),#000000_90%)] pointer-events-none z-0"></div>
 
         {/* Game World Layer - Higher Z-Index */}
-        {/* We use the memoized MapRenderer here */}
         <div ref={worldRef} className="absolute will-change-transform z-10" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
 
-            {/* Remote Players (Ghosts) - Rendered from memoized list */}
-            {processedOtherPlayers.map(p => (
-                <div 
-                    key={p.id}
-                    className="absolute top-0 left-0 z-30 flex flex-col items-center transition-transform duration-[2000ms] ease-linear will-change-transform cursor-pointer"
-                    style={{ 
-                        width: PLAYER_SIZE, 
-                        height: PLAYER_SIZE,
-                        transform: `translate3d(${p.safeX}px, ${p.safeY}px, 0)` 
-                    }}
-                    onClick={(e) => {
-                        // Manual Click fallback if joystick disabled
-                        e.stopPropagation();
-                        setNearbyPlayer(p);
-                    }}
-                >
-                    {/* Remote Chat Bubble - No Time Expiry Check to fix visibility issues */}
-                    {p.msg && (!p.msg.startsWith('[[') || p.msg.startsWith('[[ROOT::')) && (
-                        <div className={`absolute bottom-full mb-4 left-1/2 -translate-x-1/2 z-50 animate-bounce w-max max-w-[200px] rounded-sm leading-tight text-center whitespace-normal break-words ${
-                            p.msg.startsWith('[[ROOT::') 
-                            ? 'bg-amber-950/90 border-2 border-amber-500 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.6)] px-3 py-2' 
-                            : 'bg-black/90 border border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] px-2 py-1'
-                        }`}>
-                            {p.msg.startsWith('[[ROOT::') ? (
-                                <>
-                                    <div className="flex items-center justify-center gap-1 border-b border-amber-500/50 pb-1 mb-1 text-[8px] font-black tracking-widest text-amber-500">
-                                        <Crown size={10} /> CREATOR
-                                    </div>
-                                    <div className="font-serif italic text-xs">
-                                        {p.msg.slice(8, -2)}
-                                    </div>
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-amber-500"></div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="text-[10px]">{p.msg}</div>
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {/* PvP Invite Indicator bubble */}
-                    {p.msg && p.msg.startsWith('[[DUEL_REQ') && (
-                        <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 bg-red-900/90 border border-red-500 text-white text-[9px] px-1 whitespace-nowrap z-50 animate-pulse">
-                            ⚔️ CHALLENGING
-                        </div>
-                    )}
-
-                    <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
-                        {p.nickname} <span className="animate-pulse">///</span>
-                    </div>
-                    
-                    {/* Interaction Trigger for PvP */}
-                    {nearbyPlayer?.id === p.id && !battleState?.active && (
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                sendPvPInvite();
-                            }}
-                            className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 border border-red-400 shadow-hard hover:scale-110 transition-transform z-50 flex items-center gap-1"
-                        >
-                            <Swords size={10} /> DUEL
-                        </button>
-                    )}
-                    
-                    <div className="w-full h-full relative flex items-center justify-center opacity-60">
-                        {/* Ghost Glow */}
-                        <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
-                        
-                        <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
-                            <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
-                        </svg>
-                    </div>
-                </div>
-            ))}
+            {/* Remote Players Layer (Extracted) */}
+            <RemotePlayersLayer 
+                players={processedOtherPlayers} 
+                nearbyPlayer={nearbyPlayer}
+                setNearbyPlayer={setNearbyPlayer}
+                battleActive={!!battleState?.active}
+                onSendPvP={sendPvPInvite}
+                myId={sessionIdRef.current}
+            />
 
             {/* Secret Room Overlay */}
             <div 
@@ -1335,7 +1200,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     </div>
                 ) : (
                     <div className="w-full h-full rounded-full overflow-hidden border-2 border-amber-500/50 relative bg-black">
-                        <img src="https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png" alt="TEA" className="w-full h-full object-cover" />
+                        <img src="https://cdn.picui.cn/vip/2026/01/02/6957e8e438965.png" alt="TEA" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-amber-500/10 animate-pulse"></div>
                     </div>
                 )}
@@ -1413,210 +1278,49 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             </div>
         </div>
 
-        {/* HUD */}
-        <div className="fixed top-4 left-4 z-40 flex flex-col gap-2 pointer-events-none">
-            <div className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-light backdrop-blur-sm">
-                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : (!isEnemyDefeatedRef.current ? 'LOCAL_MODE' : (isDuplicateNameDetected ? 'OFFLINE (CONFLICT)' : 'CONNECTING...'))}
-            </div>
-            <div ref={hudPosRef} className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-gray backdrop-blur-sm">
-                POS: 500, 700
-            </div>
-            <div className="bg-black/70 border border-ash-gray/30 p-2 text-[9px] font-mono text-ash-gray/80 backdrop-blur-sm w-48 overflow-hidden flex flex-col gap-0.5">
-                <div className="flex items-center gap-2 text-emerald-500/70 border-b border-ash-gray/20 pb-1 mb-1">
-                    <Activity size={8} className="animate-pulse" />
-                    <span>SYS_MONITOR // ACTIVE</span>
-                </div>
-                {systemLogs.map((log, i) => (
-                    <div key={i} className={`truncate transition-all duration-300 ${i === 0 ? 'text-ash-light' : 'opacity-60'}`}>
-                        {log}
-                    </div>
-                ))}
-            </div>
-            {/* Online Players Counter & Trigger */}
-            <button 
-                onClick={() => setShowPlayerList(true)}
-                className="bg-black/50 border border-cyan-500/30 px-3 py-1 text-[10px] font-mono text-cyan-400 backdrop-blur-sm flex items-center gap-2 pointer-events-auto hover:bg-cyan-950/30 transition-colors"
-            >
-                <Users size={12} />
-                <span>ECHOES: {processedOtherPlayers.length}</span>
-                <Signal size={10} className={`animate-pulse ${isOnline ? 'text-green-500' : 'text-red-500'}`} />
-            </button>
-        </div>
-
-        {/* Sender Cancel PvP Button */}
-        {myChatMsg?.text.startsWith('[[DUEL_REQ') && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[160] animate-slide-in">
-                <button 
-                    onClick={cancelPvPInvite}
-                    className="bg-red-950/90 border-2 border-red-500 text-red-100 font-bold px-4 py-2 flex items-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:bg-red-900 transition-colors uppercase text-xs"
-                >
-                    <Ban size={14} /> CANCEL INVITE
-                </button>
-            </div>
-        )}
-
-        {/* Duplicate Name Alert Modal */}
-        {duplicateNameAlert && (
-            <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
-                <div className="bg-ash-black border-2 border-red-500 p-6 shadow-[0_0_50px_rgba(220,38,38,0.5)] w-full max-w-sm text-center relative animate-shake-violent">
-                    <AlertOctagon size={48} className="mx-auto text-red-500 mb-4 animate-pulse" />
-                    <h2 className="text-xl font-black text-red-500 uppercase tracking-widest mb-2">SIGNAL CONFLICT</h2>
-                    <p className="text-ash-light font-mono text-sm mb-6 leading-relaxed">
-                        IDENTITY_DUPLICATE_DETECTED<br/>
-                        <span className="text-red-400 font-bold">"{playerName}"</span> IS ALREADY ACTIVE.
-                    </p>
-                    <div className="bg-red-950/30 border border-red-500/30 p-2 mb-6 text-[10px] text-red-300 font-mono">
-                        SYSTEM HAS FORCED OFFLINE MODE.<br/>PLEASE CHANGE YOUR NICKNAME IN GUESTBOOK.
-                    </div>
-                    <button 
-                        onClick={() => {
-                            setDuplicateNameAlert(false);
-                            if (onOpenGuestbook) onOpenGuestbook();
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 uppercase tracking-widest transition-colors shadow-hard"
-                    >
-                        CHANGE IDENTITY
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {/* PvP Invite Modal */}
-        {pvpInvite && (
-            <div className="fixed inset-0 z-[150] bg-black/80 flex items-center justify-center p-4 animate-fade-in" onClick={() => {}}>
-                <div className="bg-ash-black border-2 border-red-500 p-6 shadow-[0_0_30px_rgba(220,38,38,0.5)] w-full max-w-sm text-center relative animate-shake-violent">
-                    <Swords size={48} className="mx-auto text-red-500 mb-4 animate-pulse" />
-                    <h2 className="text-xl font-black text-red-500 uppercase tracking-widest mb-2">DUEL CHALLENGE</h2>
-                    <p className="text-ash-light font-mono text-sm mb-6">
-                        <span className="text-emerald-400 font-bold">{pvpInvite.nickname}</span> wants to battle you!
-                    </p>
-                    <div className="flex gap-4">
-                        <button onClick={acceptPvP} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 uppercase tracking-widest transition-colors shadow-hard">
-                            ACCEPT
-                        </button>
-                        <button onClick={rejectPvP} className="flex-1 border border-ash-gray text-ash-gray hover:text-ash-light py-3 uppercase tracking-widest transition-colors">
-                            DECLINE
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* Player List Modal */}
-        {showPlayerList && (
-            <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowPlayerList(false)}>
-                <div className="bg-ash-black border-2 border-cyan-500 p-6 shadow-hard w-full max-w-sm relative" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => setShowPlayerList(false)} className="absolute top-2 right-2 text-cyan-500 hover:text-cyan-300"><X size={16} /></button>
-                    <h3 className="text-cyan-500 font-black mb-4 uppercase tracking-widest flex items-center gap-2">
-                        <Users size={16} /> SIGNAL_TRACING
-                    </h3>
-                    <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                        {/* Self */}
-                        <div className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-emerald-400">
-                            <span>{playerName} (YOU)</span>
-                            <span>[{Math.round(playerPosRef.current.x)}, {Math.round(playerPosRef.current.y)}]</span>
-                        </div>
-                        {/* Others - Use processed list */}
-                        {processedOtherPlayers.map(p => (
-                            <div key={p.id} className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-cyan-300/80">
-                                <span className="flex items-center gap-1">
-                                    {p.nickname}
-                                    {p.tea && <span className="text-amber-500 text-[8px] border border-amber-500/50 px-1 ml-1">TEA</span>}
-                                </span>
-                                <span>[{Math.round(p.safeX)}, {Math.round(p.safeY)}]</span>
-                            </div>
-                        ))}
-                        {processedOtherPlayers.length === 0 && <div className="text-[10px] text-cyan-900 italic py-2">NO_ECHOES_DETECTED</div>}
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* Chat Input Modal */}
-        {showChatInput && (
-            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowChatInput(false)}>
-                <div 
-                    className="bg-black border-2 border-emerald-500 p-4 w-full max-w-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] relative"
-                    onClick={e => e.stopPropagation()}
-                >
-                    <div className="text-[10px] font-mono text-emerald-500 mb-2 uppercase flex items-center gap-2">
-                        <MessageSquare size={12} /> GLOBAL_CHAT // BROADCAST
-                    </div>
-                    <form onSubmit={handleSendChat} className="flex gap-2">
-                        <input 
-                            type="text" 
-                            autoFocus
-                            value={chatInputValue}
-                            onChange={(e) => setChatInputValue(e.target.value)}
-                            placeholder="Type message..."
-                            maxLength={60}
-                            className="flex-1 bg-emerald-950/20 border-b border-emerald-500/50 text-emerald-100 text-sm p-2 outline-none focus:border-emerald-400 placeholder:text-emerald-500/30"
-                        />
-                        <button type="submit" className="bg-emerald-900/30 text-emerald-400 border border-emerald-500/50 px-3 hover:bg-emerald-500 hover:text-black transition-colors">
-                            <Send size={16} />
-                        </button>
-                    </form>
-                </div>
-            </div>
-        )}
-
-        {/* Interaction Prompt */}
-        {activeObj && !viewingExhibit && !battleState?.active && !pendingLink && !showChatInput && (
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-bounce">
-                <button 
-                    onClick={handleInteract}
-                    className="bg-emerald-600 text-black px-6 py-3 font-bold uppercase tracking-widest border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)] flex items-center gap-2"
-                >
-                    {activeObj.type === 'terminal' ? (activeObj.id === 'terminal-guestbook' ? <MessageSquare size={16} /> : 'LINK') : activeObj.type === 'npc' ? 'TALK' : 'INSPECT'} [SPACE]
-                </button>
-            </div>
-        )}
-
-        {/* External Link Confirmation Modal */}
-        {pendingLink && (
-            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setPendingLink(null)}>
-                <div className="w-full max-w-sm bg-black border-2 border-sky-500 p-6 shadow-[0_0_30px_rgba(56,189,248,0.2)] relative" onClick={e => e.stopPropagation()}>
-                    <div className="absolute top-2 right-2">
-                        <button onClick={() => setPendingLink(null)} className="text-sky-700 hover:text-sky-400 transition-colors">
-                            <X size={20} />
-                        </button>
-                    </div>
-                    
-                    <div className="flex flex-col items-center text-center gap-4 mb-6">
-                        <div className="w-16 h-16 rounded-full border-2 border-sky-500/50 flex items-center justify-center bg-sky-950/20 animate-pulse">
-                            <ExternalLink size={32} className="text-sky-400" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-sky-400 uppercase tracking-widest mb-1">
-                                {pendingLink.title}
-                            </h2>
-                            <p className="text-xs font-mono text-sky-600/80">
-                                ESTABLISHING_EXTERNAL_CONNECTION...
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="bg-sky-900/10 border border-sky-800/30 p-3 mb-6 text-[10px] font-mono text-sky-300/70 text-center break-all">
-                        TARGET: {pendingLink.url}
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={handleConfirmLink}
-                            className="flex-1 bg-sky-600 hover:bg-sky-500 text-black font-bold py-3 uppercase tracking-wider transition-colors shadow-hard"
-                        >
-                            CONFIRM
-                        </button>
-                        <button 
-                            onClick={() => setPendingLink(null)}
-                            className="flex-1 border border-sky-800 text-sky-600 hover:text-sky-400 hover:border-sky-500 py-3 uppercase tracking-wider transition-colors"
-                        >
-                            CANCEL
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
+        {/* Game UI Layer (HUD, Modals, Chat Input) */}
+        <GameUI 
+            isOnline={isOnline}
+            isLocalMode={!isEnemyDefeatedRef.current}
+            isDuplicateName={isDuplicateNameDetected}
+            playerName={playerName}
+            playerPos={playerPosState}
+            systemLogs={systemLogs}
+            onlineCount={processedOtherPlayers.length}
+            
+            onShowPlayerList={() => setShowPlayerList(true)}
+            onClosePlayerList={() => setShowPlayerList(false)}
+            showPlayerList={showPlayerList}
+            playerList={processedOtherPlayers}
+            
+            pvpInvite={pvpInvite}
+            onAcceptPvP={acceptPvP}
+            onRejectPvP={rejectPvP}
+            
+            myInviteSent={!!(myChatMsg?.text && myChatMsg.text.startsWith('[[DUEL_REQ'))}
+            onCancelInvite={cancelPvPInvite}
+            
+            duplicateAlert={duplicateNameAlert}
+            onDuplicateResolve={() => {
+                setDuplicateNameAlert(false);
+                if (onOpenGuestbook) onOpenGuestbook();
+            }}
+            
+            showChatInput={showChatInput}
+            setShowChatInput={setShowChatInput}
+            chatInputValue={chatInputValue}
+            setChatInputValue={setChatInputValue}
+            onSendChat={handleSendChat}
+            
+            pendingLink={pendingLink}
+            onConfirmLink={handleConfirmLink}
+            onCancelLink={() => setPendingLink(null)}
+            
+            activeObj={activeObj}
+            viewingExhibit={viewingExhibit}
+            battleActive={!!battleState?.active}
+            onInteract={handleInteract}
+        />
 
         {/* Battle Interface */}
         {battleState?.active && (
@@ -1627,7 +1331,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 onVictoryConfirm={handleVictoryConfirm}
                 language={language}
                 nickname={playerName}
-                // Pass Enemy info override if PvP
                 enemyName={pvpTarget?.nickname}
             />
         )}
@@ -1664,15 +1367,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             </div>
         )}
 
-        {/* Chat Toggle Button (Mobile/Tablet Only for easier access) */}
-        {!battleState?.active && !viewingExhibit && !pendingLink && (
-            <button 
-                onClick={() => setShowChatInput(true)}
-                className="fixed bottom-32 right-8 z-[60] bg-black/80 text-emerald-400 p-3 rounded-full border-2 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-110 active:scale-95 transition-all lg:hidden"
-            >
-                <MessageCircle size={24} />
-            </button>
-        )}
+        {/* Chat Toggle Button (Mobile/Tablet Only for easier access) handled in GameUI via prop if needed, 
+            but kept here if logic requires it. Actually moved to GameUI. */}
 
         {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && !showPlayerList && (
             <VirtualJoystick 
