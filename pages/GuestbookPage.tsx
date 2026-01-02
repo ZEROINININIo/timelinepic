@@ -165,31 +165,29 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
 
       setIsSending(true);
 
-      // Attempt to send via API first, fallback to local immediately if fails
+      // FIX: Always attempt to send via API first, even if currently "disconnected"
+      // This allows reconnection if the network is back online.
       try {
-          // If we THINK we are connected, try POST
-          if (isConnected) {
-              const res = await fetch(API_URL, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(newMsgObj)
-              });
-              
-              if (res.ok) {
-                  await loadMessages(true);
-                  setInputText('');
-                  setCooldown(5);
-                  return; // Success exit
-              } else if (res.status === 429) {
-                  console.warn("Server Rate Limit hit. Switching to offline fallback.");
-                  throw new Error("Rate Limited"); // Throw to trigger catch block
-              }
-              // If not OK, throw to catch block for fallback
-              throw new Error("Server rejected message");
-          } else {
-              // Not connected initially, throw to catch
-              throw new Error("Offline mode");
+          const res = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(newMsgObj)
+          });
+          
+          if (res.ok) {
+              // Success: Update connection state and reload messages from server
+              setIsConnected(true); 
+              await loadMessages(true);
+              setInputText('');
+              setCooldown(5);
+              return; // Success exit
+          } else if (res.status === 429) {
+              console.warn("Server Rate Limit hit. Switching to offline fallback.");
+              throw new Error("Rate Limited"); // Throw to trigger catch block
           }
+          // If not OK (e.g. 500, 403), throw to catch block for fallback
+          throw new Error("Server rejected message");
+          
       } catch (e) {
           // Fallback Logic
           console.warn("API Submit failed, falling back to local storage.", e);

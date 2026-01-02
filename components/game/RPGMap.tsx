@@ -13,7 +13,7 @@ import BattleInterface from './rpg/BattleInterface';
 
 // API Configuration
 const API_URL = 'https://cdn.zeroxv.cn/nova_api/api.php';
-const HEARTBEAT_INTERVAL = 1500; // Faster polling for PvP
+const HEARTBEAT_INTERVAL = 2000; // Increased to 2s to reduce load
 const MESSAGE_LIFETIME = 6000; // 6 seconds display time for local echo
 
 interface RPGMapProps {
@@ -39,10 +39,12 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [teaStage, setTeaStage] = useState(0); 
   const isTeaFollowing = teaStage >= 4;
 
-  // Enemy Refs
+  // Enemy Refs - Initialize defeated state from local storage synchronously if possible to avoid flash
+  const isEnemyDefeatedRef = useRef<boolean>(
+      typeof window !== 'undefined' ? localStorage.getItem('nova_enemy_defeated') === 'true' : false
+  );
   const enemyPosRef = useRef<RPGPosition>({ x: 1400, y: 300 });
   const enemyElemRef = useRef<HTMLDivElement>(null);
-  const isEnemyDefeatedRef = useRef<boolean>(false);
   
   const activeObjRef = useRef<RPGObject | null>(null);
   const directionRef = useRef<'up'|'down'|'left'|'right'>('up');
@@ -69,7 +71,20 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [otherPlayers, setOtherPlayers] = useState<RemotePlayer[]>([]);
   const [isOnline, setIsOnline] = useState(false);
   const [showPlayerList, setShowPlayerList] = useState(false);
-  const sessionIdRef = useRef<string>(`user-${Math.floor(Math.random() * 1000000)}`);
+  
+  // Fix: Use sessionStorage to persist ID across remounts (prevents ghosts)
+  const sessionIdRef = useRef<string>(
+    (function() {
+        if (typeof window === 'undefined') return `user-${Math.floor(Math.random() * 1000000)}`;
+        
+        let id = sessionStorage.getItem('nova_rpg_session_id');
+        if (!id) {
+            id = `user-${Math.floor(Math.random() * 1000000)}`;
+            sessionStorage.setItem('nova_rpg_session_id', id);
+        }
+        return id;
+    })()
+  );
   
   // PvP State
   const [nearbyPlayer, setNearbyPlayer] = useState<RemotePlayer | null>(null);
@@ -116,7 +131,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- OPTIMIZATION: Process Remote Players Data ---
   const processedOtherPlayers = useMemo(() => {
-      return otherPlayers.map(p => {
+      // Cap at 15 players to prevent rendering lag
+      return otherPlayers.slice(0, 15).map(p => {
           const px = Number(p.x);
           const py = Number(p.y);
           if (isNaN(px) || isNaN(py)) return null;
@@ -140,7 +156,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- MULTIPLAYER HEARTBEAT & SYNC ---
   const sendHeartbeat = useCallback(async () => {
-      if (isPreloading) return;
+      // Prevent connection during preload OR if tutorial enemy is still active (Single Player Mode)
+      if (isPreloading || !isEnemyDefeatedRef.current) return;
 
       try {
           const payload = {
@@ -176,6 +193,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // Polling Interval
   useEffect(() => {
+      // Don't start interval immediately if in tutorial mode, but sendHeartbeat handles the check.
       sendHeartbeat(); // Initial
       const interval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
       return () => clearInterval(interval);
@@ -265,9 +283,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const totalAssets = MAP_OBJECTS.filter(obj => obj.imageUrl).length + 1;
 
   useEffect(() => {
-      const defeated = localStorage.getItem('nova_enemy_defeated');
-      isEnemyDefeatedRef.current = defeated === 'true';
-      if (defeated === 'true' && enemyElemRef.current) {
+      if (isEnemyDefeatedRef.current && enemyElemRef.current) {
           enemyElemRef.current.style.display = 'none';
       }
 
@@ -736,11 +752,14 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           alert("VICTORY! HONOR PRESERVED.");
           cleanupPvPState();
       } else {
-          // PvE Win
+          // PvE Win - Mark Defeated & Enable Online Mode
           localStorage.setItem('nova_enemy_defeated', 'true');
           isEnemyDefeatedRef.current = true;
           setBattleState(null);
           if (enemyElemRef.current) enemyElemRef.current.style.display = 'none';
+          
+          // Force immediate heartbeat to connect online now that battle is over
+          sendHeartbeat();
       }
   };
 
@@ -1167,7 +1186,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         {/* HUD */}
         <div className="fixed top-4 left-4 z-40 flex flex-col gap-2 pointer-events-none">
             <div className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-light backdrop-blur-sm">
-                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : 'CONNECTING...'}
+                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : (!isEnemyDefeatedRef.current ? 'LOCAL_MODE' : 'CONNECTING...')}
             </div>
             <div ref={hudPosRef} className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-gray backdrop-blur-sm">
                 POS: 500, 700
