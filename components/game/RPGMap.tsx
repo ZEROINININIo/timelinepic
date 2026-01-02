@@ -263,13 +263,13 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
   }, [isPreloading, playerName, myChatMsg, isTeaFollowing, isDuplicateNameDetected, battleState?.active, pvpInvite]);
 
-  // Initial Start of Polling Loop
+  // Start/Restart Polling Loop when dependencies change (e.g. nickname, status)
   useEffect(() => {
       sendHeartbeat();
       return () => {
           if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       };
-  }, []); 
+  }, [sendHeartbeat]);
 
   // --- INCOMING SIGNAL PROCESSOR (Chat, Invite, Battle) ---
   useEffect(() => {

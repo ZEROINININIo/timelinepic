@@ -12,7 +12,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'npc', 
         label: 'GUIDE', 
         color: 'text-emerald-300',
-        imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b509851e.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957ea205a138.jpg',
         description: {
             'zh-CN': '【系统引导】\n\n1. 操作：使用 WASD / 方向键 或 屏幕摇杆 移动，接近物体按 [SPACE] 或点击按钮交互。\n\n2. 坐标：当前位于「泛宇」(Pan-Universe)。\n\n3. 说明：这里既非「现世」，亦非「主宇」。它是一个独立于时间轴之外的数据切片。\n\n要想知道泛宇究竟是什么... 请持续关注后续的剧情更新。',
             'zh-TW': '【系統引導】\n\n1. 操作：使用 WASD / 方向鍵 或 螢幕搖桿 移動，接近物體按 [SPACE] 或點擊按鈕交互。\n\n2. 坐標：當前位於「泛宇」(Pan-Universe)。\n\n3. 說明：這裡既非「現世」，亦非「主宇」。它是一個獨立於時間軸之外的數據切片。\n\n要想知道泛宇究竟是什麼... 請持續關注後續的劇情更新。',
