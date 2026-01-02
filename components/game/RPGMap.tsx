@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
 import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
@@ -87,6 +87,34 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       "难不成还要我陪你看？",
       "好吧.."
   ];
+
+  // --- OPTIMIZATION: Memoize Joystick Handlers ---
+  // If these are recreated every render, VirtualJoystick re-renders, causing touch interruptions
+  const handleJoystickMove = useCallback((dx: number, dy: number) => {
+      if (dx < 0) keysPressed.current.add('ArrowLeft');
+      else keysPressed.current.delete('ArrowLeft');
+      if (dx > 0) keysPressed.current.add('ArrowRight');
+      else keysPressed.current.delete('ArrowRight');
+      if (dy < 0) keysPressed.current.add('ArrowUp');
+      else keysPressed.current.delete('ArrowUp');
+      if (dy > 0) keysPressed.current.add('ArrowDown');
+      else keysPressed.current.delete('ArrowDown');
+  }, []);
+
+  const handleJoystickStop = useCallback(() => {
+      keysPressed.current.clear();
+  }, []);
+
+  // --- OPTIMIZATION: Process Remote Players Data ---
+  // Perform expensive parsing in useMemo instead of render loop
+  const processedOtherPlayers = useMemo(() => {
+      return otherPlayers.map(p => {
+          const px = Number(p.x);
+          const py = Number(p.y);
+          if (isNaN(px) || isNaN(py)) return null;
+          return { ...p, safeX: px, safeY: py };
+      }).filter(p => p !== null) as (RemotePlayer & { safeX: number, safeY: number })[];
+  }, [otherPlayers]);
 
   // --- CHAT MESSAGE EXPIRY ---
   useEffect(() => {
@@ -465,6 +493,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           }
 
           const nearest = findInteractionTarget(nextX, nextY);
+          
+          // Optimization: Only update state if the object actually changed
           if (nearest?.id !== activeObjRef.current?.id) {
               activeObjRef.current = nearest;
               setActiveObj(nearest);
@@ -641,51 +671,43 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         <div className="fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(50,50,50,0.1),#000000_90%)] pointer-events-none z-0"></div>
 
         {/* Game World Layer - Higher Z-Index */}
+        {/* We use the memoized MapRenderer here */}
         <div ref={worldRef} className="absolute will-change-transform z-10" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
 
-            {/* Remote Players (Ghosts) */}
-            {otherPlayers.map(p => {
-                // Ensure coordinates are safe numbers to prevent rendering issues and "Flying out" bugs
-                // Use Number() for better parsing than parseInt if float is returned, and default to 0 if NaN
-                const px = Number(p.x);
-                const py = Number(p.y);
-                
-                if (isNaN(px) || isNaN(py)) return null;
-
-                return (
-                    <div 
-                        key={p.id}
-                        className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
-                        style={{ 
-                            width: PLAYER_SIZE, 
-                            height: PLAYER_SIZE,
-                            transform: `translate3d(${px}px, ${py}px, 0)` 
-                        }}
-                    >
-                        {/* Remote Chat Bubble */}
-                        {p.msg && (!p.msg_ts || Date.now() - p.msg_ts < MESSAGE_LIFETIME) && (
-                            <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
-                                {p.msg}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
-                            </div>
-                        )}
-
-                        <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
-                            {p.nickname} <span className="animate-pulse">///</span>
+            {/* Remote Players (Ghosts) - Rendered from memoized list */}
+            {processedOtherPlayers.map(p => (
+                <div 
+                    key={p.id}
+                    className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
+                    style={{ 
+                        width: PLAYER_SIZE, 
+                        height: PLAYER_SIZE,
+                        transform: `translate3d(${p.safeX}px, ${p.safeY}px, 0)` 
+                    }}
+                >
+                    {/* Remote Chat Bubble */}
+                    {p.msg && (!p.msg_ts || Date.now() - p.msg_ts < MESSAGE_LIFETIME) && (
+                        <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
+                            {p.msg}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
                         </div>
-                        
-                        <div className="w-full h-full relative flex items-center justify-center opacity-60">
-                            {/* Ghost Glow */}
-                            <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
-                            
-                            <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
-                                <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
-                            </svg>
-                        </div>
+                    )}
+
+                    <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
+                        {p.nickname} <span className="animate-pulse">///</span>
                     </div>
-                );
-            })}
+                    
+                    <div className="w-full h-full relative flex items-center justify-center opacity-60">
+                        {/* Ghost Glow */}
+                        <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
+                        
+                        <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
+                            <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
+                        </svg>
+                    </div>
+                </div>
+            ))}
 
             {/* Secret Room Overlay */}
             <div 
@@ -832,11 +854,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                             <span>{playerName} (YOU)</span>
                             <span>[{Math.round(playerPosRef.current.x)}, {Math.round(playerPosRef.current.y)}]</span>
                         </div>
-                        {/* Others */}
-                        {otherPlayers.map(p => (
+                        {/* Others - Use processed list */}
+                        {processedOtherPlayers.map(p => (
                             <div key={p.id} className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-cyan-300/80">
                                 <span>{p.nickname}</span>
-                                <span>[{Math.round(Number(p.x))}, {Math.round(Number(p.y))}]</span>
+                                <span>[{Math.round(p.safeX)}, {Math.round(p.safeY)}]</span>
                             </div>
                         ))}
                         {otherPlayers.length === 0 && <div className="text-[10px] text-cyan-900 italic py-2">NO_ECHOES_DETECTED</div>}
@@ -987,18 +1009,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
         {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && !showPlayerList && (
             <VirtualJoystick 
-                onMove={(dx, dy) => {
-                    // Simulate key press for loop
-                    if (dx < 0) keysPressed.current.add('ArrowLeft');
-                    else keysPressed.current.delete('ArrowLeft');
-                    if (dx > 0) keysPressed.current.add('ArrowRight');
-                    else keysPressed.current.delete('ArrowRight');
-                    if (dy < 0) keysPressed.current.add('ArrowUp');
-                    else keysPressed.current.delete('ArrowUp');
-                    if (dy > 0) keysPressed.current.add('ArrowDown');
-                    else keysPressed.current.delete('ArrowDown');
-                }} 
-                onStop={() => keysPressed.current.clear()} 
+                onMove={handleJoystickMove} 
+                onStop={handleJoystickStop} 
             />
         )}
     </div>

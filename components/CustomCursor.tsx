@@ -6,6 +6,7 @@ const CustomCursor: React.FC = () => {
   const [isPointer, setIsPointer] = useState(false);
   const [isClicking, setIsClicking] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const lastCheckTimeRef = useRef(0);
 
   useEffect(() => {
     // Only enable on devices with fine pointers (mouse)
@@ -31,13 +32,16 @@ const CustomCursor: React.FC = () => {
           cursorRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
       }
       
-      const target = e.target as HTMLElement;
-      
-      // Optimization: Simple check for interactive elements
-      // Instead of expensive getComputedStyle, we check tag names and roles
-      const isClickable = target.closest('a, button, input, textarea, select, [role="button"], .cursor-pointer');
-      
-      setIsPointer(!!isClickable);
+      const now = Date.now();
+      // Throttle the heavy `closest` check to run only every 100ms
+      // Visual update of cursor position remains 60fps, but state update is throttled
+      if (now - lastCheckTimeRef.current > 100) {
+          const target = e.target as HTMLElement;
+          // Optimization: Simple check for interactive elements
+          const isClickable = target.closest('a, button, input, textarea, select, [role="button"], .cursor-pointer');
+          setIsPointer(!!isClickable);
+          lastCheckTimeRef.current = now;
+      }
     };
 
     const onMouseDown = () => setIsClicking(true);
