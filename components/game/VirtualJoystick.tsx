@@ -84,6 +84,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onStop }) => 
 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault(); // Prevent scrolling/gestures
+    e.stopPropagation(); // Prevent map clicks
     if (active) return;
     
     const touch = e.changedTouches[0];
@@ -94,6 +95,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onStop }) => 
 
   const handleTouchMove = (e: React.TouchEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!active) return;
     
     // Find the tracked touch
@@ -108,6 +110,7 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ onMove, onStop }) => 
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!active) return;
     
     for (let i = 0; i < e.changedTouches.length; i++) {

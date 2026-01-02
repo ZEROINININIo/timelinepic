@@ -89,6 +89,8 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
           
           const data = await response.json();
           if (Array.isArray(data)) {
+              // Ensure sorted by timestamp ASC (Oldest -> Newest) so new messages are at bottom
+              data.sort((a: Message, b: Message) => a.timestamp - b.timestamp);
               setMessages(data);
               setIsConnected(true);
           } else {
@@ -102,7 +104,9 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
               try {
                   const saved = localStorage.getItem(STORAGE_KEY);
                   if (saved) {
-                      setMessages(JSON.parse(saved));
+                      const parsed = JSON.parse(saved);
+                      parsed.sort((a: Message, b: Message) => a.timestamp - b.timestamp);
+                      setMessages(parsed);
                   } else {
                       setMessages(PRESET_MESSAGES);
                       localStorage.setItem(STORAGE_KEY, JSON.stringify(PRESET_MESSAGES));
@@ -185,6 +189,8 @@ const GuestbookPage: React.FC<GuestbookPageProps> = ({ language, isLightTheme, n
       } else {
           // Offline Mode Submit
           const updated = [...messages, newMsgObj];
+          // Ensure sort logic persists even in offline additions just in case
+          updated.sort((a, b) => a.timestamp - b.timestamp);
           setMessages(updated);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
           setInputText('');

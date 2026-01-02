@@ -66,6 +66,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // Multiplayer State
   const [otherPlayers, setOtherPlayers] = useState<RemotePlayer[]>([]);
+  const [isOnline, setIsOnline] = useState(false); // Connection status
+  const [showPlayerList, setShowPlayerList] = useState(false); // Player List Modal
   const sessionIdRef = useRef<string>(`user-${Math.floor(Math.random() * 1000000)}`);
   
   // Chat State
@@ -120,12 +122,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
               if (res.ok) {
                   const data = await res.json();
+                  setIsOnline(true);
                   if (Array.isArray(data)) {
                       setOtherPlayers(data);
                   }
+              } else {
+                  setIsOnline(false);
               }
           } catch (e) {
               console.warn("Heartbeat failed", e);
+              setIsOnline(false);
           }
       };
 
@@ -413,7 +419,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- MAIN GAME LOOP ---
   const gameLoop = useCallback(() => {
-      if (viewingExhibit || isPreloading || battleState?.active || pendingLink || showChatInput) {
+      if (viewingExhibit || isPreloading || battleState?.active || pendingLink || showChatInput || showPlayerList) {
           requestRef.current = requestAnimationFrame(gameLoop);
           return;
       }
@@ -519,7 +525,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing, pendingLink, showChatInput]);
+  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing, pendingLink, showChatInput, showPlayerList]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -614,19 +620,21 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           if (e.code === 'Escape') {
               if (viewingExhibit) handleCloseViewer();
               if (pendingLink) setPendingLink(null);
+              if (showPlayerList) setShowPlayerList(false);
           }
       };
       window.addEventListener('keydown', handleKeyPress);
       return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [activeObj, viewingExhibit, teaStage, pendingLink, showChatInput]);
+  }, [activeObj, viewingExhibit, teaStage, pendingLink, showChatInput, showPlayerList]);
 
   // --- RENDER ---
   if (isPreloading) {
       return <AssetLoader loadedCount={loadedAssets.size + failedAssets.size} totalCount={totalAssets} onSkip={() => setIsPreloading(false)} />;
   }
 
+  // Use fixed positioning and dvh to fix iOS scroll/viewport issues
   return (
-    <div className="w-full h-full bg-[#050505] relative overflow-hidden font-mono select-none touch-none">
+    <div className="fixed inset-0 w-full h-[100dvh] bg-[#050505] relative overflow-hidden font-mono select-none touch-none">
         
         {/* Environment Layer - Set Z-Index Low */}
         <div className="fixed inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-0 bg-[length:100%_4px,3px_100%] pointer-events-none opacity-20"></div>
@@ -637,38 +645,47 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
 
             {/* Remote Players (Ghosts) */}
-            {otherPlayers.map(p => (
-                <div 
-                    key={p.id}
-                    className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
-                    style={{ 
-                        width: PLAYER_SIZE, 
-                        height: PLAYER_SIZE,
-                        transform: `translate3d(${p.x}px, ${p.y}px, 0)` 
-                    }}
-                >
-                    {/* Remote Chat Bubble */}
-                    {p.msg && (!p.msg_ts || Date.now() - p.msg_ts < MESSAGE_LIFETIME) && (
-                        <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-nowrap z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] max-w-[150px] truncate rounded-sm">
-                            {p.msg}
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
-                        </div>
-                    )}
+            {otherPlayers.map(p => {
+                // Ensure coordinates are safe numbers to prevent rendering issues and "Flying out" bugs
+                // Use Number() for better parsing than parseInt if float is returned, and default to 0 if NaN
+                const px = Number(p.x);
+                const py = Number(p.y);
+                
+                if (isNaN(px) || isNaN(py)) return null;
 
-                    <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
-                        {p.nickname} <span className="animate-pulse">///</span>
-                    </div>
-                    
-                    <div className="w-full h-full relative flex items-center justify-center opacity-60">
-                        {/* Ghost Glow */}
-                        <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
+                return (
+                    <div 
+                        key={p.id}
+                        className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
+                        style={{ 
+                            width: PLAYER_SIZE, 
+                            height: PLAYER_SIZE,
+                            transform: `translate3d(${px}px, ${py}px, 0)` 
+                        }}
+                    >
+                        {/* Remote Chat Bubble */}
+                        {p.msg && (!p.msg_ts || Date.now() - p.msg_ts < MESSAGE_LIFETIME) && (
+                            <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
+                                {p.msg}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                            </div>
+                        )}
+
+                        <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
+                            {p.nickname} <span className="animate-pulse">///</span>
+                        </div>
                         
-                        <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
-                            <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
-                        </svg>
+                        <div className="w-full h-full relative flex items-center justify-center opacity-60">
+                            {/* Ghost Glow */}
+                            <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
+                            
+                            <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
+                                <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
+                            </svg>
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
 
             {/* Secret Room Overlay */}
             <div 
@@ -729,7 +746,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             >
                 {/* My Chat Bubble */}
                 {myChatMsg && (
-                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-nowrap z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] max-w-[150px] truncate rounded-sm">
+                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-normal break-words z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] w-max max-w-[200px] rounded-sm leading-tight text-center">
                         {myChatMsg.text}
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
                     </div>
@@ -774,7 +791,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         {/* HUD */}
         <div className="fixed top-4 left-4 z-40 flex flex-col gap-2 pointer-events-none">
             <div className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-light backdrop-blur-sm">
-                <span className="text-emerald-500 font-bold">STATUS:</span> ONLINE
+                <span className="text-emerald-500 font-bold">STATUS:</span> {isOnline ? 'ONLINE' : 'CONNECTING...'}
             </div>
             <div ref={hudPosRef} className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-gray backdrop-blur-sm">
                 POS: 500, 700
@@ -790,13 +807,43 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     </div>
                 ))}
             </div>
-            {/* Online Players Counter */}
-            <div className="bg-black/50 border border-cyan-500/30 px-3 py-1 text-[10px] font-mono text-cyan-400 backdrop-blur-sm flex items-center gap-2">
+            {/* Online Players Counter & Trigger */}
+            <button 
+                onClick={() => setShowPlayerList(true)}
+                className="bg-black/50 border border-cyan-500/30 px-3 py-1 text-[10px] font-mono text-cyan-400 backdrop-blur-sm flex items-center gap-2 pointer-events-auto hover:bg-cyan-950/30 transition-colors"
+            >
                 <Users size={12} />
                 <span>ECHOES: {otherPlayers.length}</span>
-                <Signal size={10} className="animate-pulse text-cyan-600" />
-            </div>
+                <Signal size={10} className={`animate-pulse ${isOnline ? 'text-green-500' : 'text-red-500'}`} />
+            </button>
         </div>
+
+        {/* Player List Modal */}
+        {showPlayerList && (
+            <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowPlayerList(false)}>
+                <div className="bg-ash-black border-2 border-cyan-500 p-6 shadow-hard w-full max-w-sm relative" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setShowPlayerList(false)} className="absolute top-2 right-2 text-cyan-500 hover:text-cyan-300"><X size={16} /></button>
+                    <h3 className="text-cyan-500 font-black mb-4 uppercase tracking-widest flex items-center gap-2">
+                        <Users size={16} /> SIGNAL_TRACING
+                    </h3>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        {/* Self */}
+                        <div className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-emerald-400">
+                            <span>{playerName} (YOU)</span>
+                            <span>[{Math.round(playerPosRef.current.x)}, {Math.round(playerPosRef.current.y)}]</span>
+                        </div>
+                        {/* Others */}
+                        {otherPlayers.map(p => (
+                            <div key={p.id} className="flex justify-between items-center text-xs font-mono border-b border-cyan-900/30 pb-1 text-cyan-300/80">
+                                <span>{p.nickname}</span>
+                                <span>[{Math.round(Number(p.x))}, {Math.round(Number(p.y))}]</span>
+                            </div>
+                        ))}
+                        {otherPlayers.length === 0 && <div className="text-[10px] text-cyan-900 italic py-2">NO_ECHOES_DETECTED</div>}
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Chat Input Modal */}
         {showChatInput && (
@@ -815,7 +862,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                             value={chatInputValue}
                             onChange={(e) => setChatInputValue(e.target.value)}
                             placeholder="Type message..."
-                            maxLength={30}
+                            maxLength={60}
                             className="flex-1 bg-emerald-950/20 border-b border-emerald-500/50 text-emerald-100 text-sm p-2 outline-none focus:border-emerald-400 placeholder:text-emerald-500/30"
                         />
                         <button type="submit" className="bg-emerald-900/30 text-emerald-400 border border-emerald-500/50 px-3 hover:bg-emerald-500 hover:text-black transition-colors">
@@ -938,7 +985,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             </button>
         )}
 
-        {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && (
+        {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && !showPlayerList && (
             <VirtualJoystick 
                 onMove={(dx, dy) => {
                     // Simulate key press for loop
