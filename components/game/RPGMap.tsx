@@ -679,7 +679,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             {processedOtherPlayers.map(p => (
                 <div 
                     key={p.id}
-                    className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
+                    className="absolute top-0 left-0 z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
                     style={{ 
                         width: PLAYER_SIZE, 
                         height: PLAYER_SIZE,
