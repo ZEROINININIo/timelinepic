@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { RPGPosition, RPGObject, Language } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare } from 'lucide-react';
+import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -10,6 +10,11 @@ import { TUTORIAL_STEPS } from './rpg/tutorialData';
 import AssetLoader from './rpg/AssetLoader';
 import MapRenderer from './rpg/MapRenderer';
 import BattleInterface from './rpg/BattleInterface';
+
+// API Configuration
+const API_URL = 'https://cdn.zeroxv.cn/nova_api/api.php';
+const HEARTBEAT_INTERVAL = 2000; // 2 seconds
+const MESSAGE_LIFETIME = 6000; // 6 seconds display time
 
 interface RPGMapProps {
   language: Language;
@@ -59,6 +64,15 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(new Set());
   const [failedAssets, setFailedAssets] = useState<Set<string>>(new Set());
 
+  // Multiplayer State
+  const [otherPlayers, setOtherPlayers] = useState<RemotePlayer[]>([]);
+  const sessionIdRef = useRef<string>(`user-${Math.floor(Math.random() * 1000000)}`);
+  
+  // Chat State
+  const [myChatMsg, setMyChatMsg] = useState<{text: string, ts: number} | null>(null);
+  const [showChatInput, setShowChatInput] = useState(false);
+  const [chatInputValue, setChatInputValue] = useState("");
+  
   // System Logs State
   const [systemLogs, setSystemLogs] = useState<string[]>([]);
 
@@ -71,6 +85,55 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       "难不成还要我陪你看？",
       "好吧.."
   ];
+
+  // --- CHAT MESSAGE EXPIRY ---
+  useEffect(() => {
+      if (myChatMsg) {
+          const timer = setTimeout(() => {
+              setMyChatMsg(null);
+          }, MESSAGE_LIFETIME);
+          return () => clearTimeout(timer);
+      }
+  }, [myChatMsg]);
+
+  // --- MULTIPLAYER HEARTBEAT ---
+  useEffect(() => {
+      const heartbeat = async () => {
+          if (isPreloading || battleState?.active) return; // Don't sync during loading or battle
+
+          try {
+              const payload = {
+                  id: sessionIdRef.current,
+                  nickname: playerName,
+                  x: Math.round(playerPosRef.current.x),
+                  y: Math.round(playerPosRef.current.y),
+                  map: 'main',
+                  msg: myChatMsg?.text || null,
+                  msg_ts: myChatMsg?.ts || null
+              };
+
+              const res = await fetch(`${API_URL}?action=heartbeat`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+              });
+
+              if (res.ok) {
+                  const data = await res.json();
+                  if (Array.isArray(data)) {
+                      setOtherPlayers(data);
+                  }
+              }
+          } catch (e) {
+              console.warn("Heartbeat failed", e);
+          }
+      };
+
+      // Initial call
+      heartbeat();
+      const interval = setInterval(heartbeat, HEARTBEAT_INTERVAL);
+      return () => clearInterval(interval);
+  }, [isPreloading, battleState?.active, playerName, myChatMsg]);
 
   // --- SYSTEM LOG SIMULATION ---
   useEffect(() => {
@@ -350,7 +413,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   // --- MAIN GAME LOOP ---
   const gameLoop = useCallback(() => {
-      if (viewingExhibit || isPreloading || battleState?.active || pendingLink) {
+      if (viewingExhibit || isPreloading || battleState?.active || pendingLink || showChatInput) {
           requestRef.current = requestAnimationFrame(gameLoop);
           return;
       }
@@ -401,8 +464,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               setActiveObj(nearest);
           }
           
-          // Check for Secret Room Overlay (Updated: Only covers Tea Room y < 250)
-          // Star Map Pavilion (y > 250) is now public/visible
+          // Check for Secret Room Overlay
           if (teaRoomOverlayRef.current) {
               if (nextX < 200 && nextY < 250) {
                   teaRoomOverlayRef.current.style.opacity = '0';
@@ -457,7 +519,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
 
       requestRef.current = requestAnimationFrame(gameLoop);
-  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing, pendingLink]);
+  }, [viewingExhibit, isPreloading, checkCollision, findInteractionTarget, battleState, isTeaFollowing, pendingLink, showChatInput]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -526,8 +588,25 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       }
   };
 
+  // Chat Send Handler
+  const handleSendChat = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!chatInputValue.trim()) {
+          setShowChatInput(false);
+          return;
+      }
+      
+      setMyChatMsg({
+          text: chatInputValue.trim(),
+          ts: Date.now()
+      });
+      setChatInputValue("");
+      setShowChatInput(false);
+  };
+
   useEffect(() => {
       const handleKeyPress = (e: KeyboardEvent) => {
+          if (showChatInput) return; // Don't hijack if typing
           if (e.code === 'Space' || e.code === 'Enter') {
               if (viewingExhibit) handleCloseViewer();
               else if (!pendingLink) handleInteract();
@@ -539,7 +618,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       };
       window.addEventListener('keydown', handleKeyPress);
       return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [activeObj, viewingExhibit, teaStage, pendingLink]);
+  }, [activeObj, viewingExhibit, teaStage, pendingLink, showChatInput]);
 
   // --- RENDER ---
   if (isPreloading) {
@@ -557,13 +636,47 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
         <div ref={worldRef} className="absolute will-change-transform z-10" style={{ width: MAP_WIDTH, height: MAP_HEIGHT }}>
             <MapRenderer objects={MAP_OBJECTS} activeObjId={activeObj?.id || null} />
 
-            {/* Secret Room Overlay (Fog of War) - Reduced Height to only cover Tea Room */}
+            {/* Remote Players (Ghosts) */}
+            {otherPlayers.map(p => (
+                <div 
+                    key={p.id}
+                    className="absolute z-30 flex flex-col items-center pointer-events-none transition-transform duration-[2000ms] ease-linear will-change-transform"
+                    style={{ 
+                        width: PLAYER_SIZE, 
+                        height: PLAYER_SIZE,
+                        transform: `translate3d(${p.x}px, ${p.y}px, 0)` 
+                    }}
+                >
+                    {/* Remote Chat Bubble */}
+                    {p.msg && (!p.msg_ts || Date.now() - p.msg_ts < MESSAGE_LIFETIME) && (
+                        <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-nowrap z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] max-w-[150px] truncate rounded-sm">
+                            {p.msg}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                        </div>
+                    )}
+
+                    <div className="absolute -top-6 text-[8px] font-mono text-cyan-500 font-bold bg-black/50 px-1 border border-cyan-900/50 whitespace-nowrap">
+                        {p.nickname} <span className="animate-pulse">///</span>
+                    </div>
+                    
+                    <div className="w-full h-full relative flex items-center justify-center opacity-60">
+                        {/* Ghost Glow */}
+                        <div className="absolute inset-0 bg-cyan-900/30 rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(34,211,238,0.3)]"></div>
+                        
+                        <svg viewBox="0 0 100 100" className="w-full h-full text-cyan-400 fill-current relative z-10 p-1">
+                            <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
+                        </svg>
+                    </div>
+                </div>
+            ))}
+
+            {/* Secret Room Overlay */}
             <div 
                 ref={teaRoomOverlayRef}
                 className="absolute bg-ash-black z-30 transition-opacity duration-700 ease-in-out border-b-2 border-r-2 border-ash-dark"
                 style={{
                     left: 0, top: 0,
-                    width: 200, height: 250 // Only covers the Tea Room
+                    width: 200, height: 250
                 }}
             >
                 <div className="absolute inset-0 flex items-center justify-center opacity-20">
@@ -588,12 +701,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             >
                 {isTeaFollowing ? (
                     <div className="w-full h-full relative flex items-center justify-center">
-                        {/* Nickname Label for TEA */}
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-amber-500 font-black text-[10px] whitespace-nowrap tracking-wider uppercase drop-shadow-[0_2px_0_rgba(0,0,0,1)] bg-black/50 px-1 border border-amber-900/50">
-                            TEA
-                        </div>
-
-                        {/* Star Shape */}
+                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-amber-500 font-black text-[10px] whitespace-nowrap tracking-wider uppercase drop-shadow-[0_2px_0_rgba(0,0,0,1)] bg-black/50 px-1 border border-amber-900/50">TEA</div>
                         <div className="absolute inset-0 bg-black rounded-full border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.8)]"></div>
                         <svg viewBox="0 0 100 100" className="w-full h-full text-amber-400 fill-current relative z-10 p-1 animate-spin-slow">
                             <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
@@ -603,23 +711,30 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     </div>
                 ) : (
                     <div className="w-full h-full rounded-full overflow-hidden border-2 border-amber-500/50 relative bg-black">
-                        <img 
-                            src="https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png" 
-                            alt="TEA" 
-                            className="w-full h-full object-cover"
-                        />
+                        <img src="https://free.picui.cn/free/2026/01/01/695673e4dfd7d.png" alt="TEA" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-amber-500/10 animate-pulse"></div>
                     </div>
                 )}
             </div>
 
-            {/* Player: Four-Pointed Star (Nova) - Enhanced Visibility & Positioning Fix */}
+            {/* Player: Four-Pointed Star */}
             <div 
                 ref={playerElemRef} 
-                className="absolute z-40 transition-transform duration-75 ease-linear will-change-transform top-0 left-0" 
+                className="absolute z-40 transition-transform duration-75 ease-linear will-change-transform top-0 left-0 cursor-pointer pointer-events-auto" 
                 style={{ width: PLAYER_SIZE, height: PLAYER_SIZE }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowChatInput(true);
+                }}
             >
-                {/* Nickname Label */}
+                {/* My Chat Bubble */}
+                {myChatMsg && (
+                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/90 border border-emerald-500 text-emerald-400 text-[10px] px-2 py-1 whitespace-nowrap z-50 animate-bounce shadow-[0_0_10px_rgba(16,185,129,0.5)] max-w-[150px] truncate rounded-sm">
+                        {myChatMsg.text}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-emerald-500"></div>
+                    </div>
+                )}
+
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-red-500 font-black text-[10px] whitespace-nowrap tracking-wider uppercase drop-shadow-[0_2px_0_rgba(0,0,0,1)] bg-black/50 px-1 border border-red-900/50">
                     {playerName}
                 </div>
@@ -631,19 +746,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                         transition: 'transform 0.1s ease-out'
                     }}
                 >
-                    {/* Background Glow/Contrast for Player - No Filter */}
                     <div className="absolute inset-0 bg-black rounded-full border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>
-                    
                     <svg viewBox="0 0 100 100" className="w-full h-full text-emerald-400 fill-current relative z-10 p-1">
                         <path d="M50 0 L65 35 L100 50 L65 65 L50 100 L35 65 L0 50 L35 35 Z" />
                     </svg>
-                    {/* Core Pulse */}
                     <div className="absolute w-2 h-2 bg-white rounded-full animate-ping z-20"></div>
                     <div className="absolute w-2 h-2 bg-emerald-100 rounded-full z-20"></div>
                 </div>
             </div>
 
-            {/* Enemy - Stabilized Visibility (No Rotation) & Positioning Fix */}
+            {/* Enemy */}
             <div 
                 ref={enemyElemRef} 
                 className="absolute z-20 transition-transform duration-100 ease-linear will-change-transform top-0 left-0" 
@@ -667,7 +779,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             <div ref={hudPosRef} className="bg-black/50 border border-ash-gray/30 px-3 py-1 text-[10px] font-mono text-ash-gray backdrop-blur-sm">
                 POS: 500, 700
             </div>
-            {/* File Loading Monitor */}
             <div className="bg-black/70 border border-ash-gray/30 p-2 text-[9px] font-mono text-ash-gray/80 backdrop-blur-sm w-48 overflow-hidden flex flex-col gap-0.5">
                 <div className="flex items-center gap-2 text-emerald-500/70 border-b border-ash-gray/20 pb-1 mb-1">
                     <Activity size={8} className="animate-pulse" />
@@ -679,10 +790,44 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     </div>
                 ))}
             </div>
+            {/* Online Players Counter */}
+            <div className="bg-black/50 border border-cyan-500/30 px-3 py-1 text-[10px] font-mono text-cyan-400 backdrop-blur-sm flex items-center gap-2">
+                <Users size={12} />
+                <span>ECHOES: {otherPlayers.length}</span>
+                <Signal size={10} className="animate-pulse text-cyan-600" />
+            </div>
         </div>
 
+        {/* Chat Input Modal */}
+        {showChatInput && (
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowChatInput(false)}>
+                <div 
+                    className="bg-black border-2 border-emerald-500 p-4 w-full max-w-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] relative"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="text-[10px] font-mono text-emerald-500 mb-2 uppercase flex items-center gap-2">
+                        <MessageSquare size={12} /> GLOBAL_CHAT // BROADCAST
+                    </div>
+                    <form onSubmit={handleSendChat} className="flex gap-2">
+                        <input 
+                            type="text" 
+                            autoFocus
+                            value={chatInputValue}
+                            onChange={(e) => setChatInputValue(e.target.value)}
+                            placeholder="Type message..."
+                            maxLength={30}
+                            className="flex-1 bg-emerald-950/20 border-b border-emerald-500/50 text-emerald-100 text-sm p-2 outline-none focus:border-emerald-400 placeholder:text-emerald-500/30"
+                        />
+                        <button type="submit" className="bg-emerald-900/30 text-emerald-400 border border-emerald-500/50 px-3 hover:bg-emerald-500 hover:text-black transition-colors">
+                            <Send size={16} />
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )}
+
         {/* Interaction Prompt */}
-        {activeObj && !viewingExhibit && !battleState?.active && !pendingLink && (
+        {activeObj && !viewingExhibit && !battleState?.active && !pendingLink && !showChatInput && (
             <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-bounce">
                 <button 
                     onClick={handleInteract}
@@ -783,7 +928,17 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             </div>
         )}
 
-        {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && (
+        {/* Chat Toggle Button (Mobile/Tablet Only for easier access) */}
+        {!battleState?.active && !viewingExhibit && !pendingLink && (
+            <button 
+                onClick={() => setShowChatInput(true)}
+                className="fixed bottom-32 right-8 z-[60] bg-black/80 text-emerald-400 p-3 rounded-full border-2 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-110 active:scale-95 transition-all lg:hidden"
+            >
+                <MessageCircle size={24} />
+            </button>
+        )}
+
+        {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && (
             <VirtualJoystick 
                 onMove={(dx, dy) => {
                     // Simulate key press for loop

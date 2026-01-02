@@ -159,6 +159,17 @@ export interface RPGObject {
   description?: Record<Language, string>;
 }
 
+// --- Multiplayer Types ---
+export interface RemotePlayer {
+  id: string;
+  nickname: string;
+  x: number;
+  y: number;
+  last_active: number;
+  msg?: string;
+  msg_ts?: number;
+}
+
 // --- Guestbook Types ---
 export interface Message {
   id: string;
