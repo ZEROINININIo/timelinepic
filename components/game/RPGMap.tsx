@@ -13,8 +13,10 @@ import BattleInterface from './rpg/BattleInterface';
 
 // API Configuration
 const API_URL = 'https://cdn.zeroxv.cn/nova_api/api.php';
-const HEARTBEAT_INTERVAL = 2000; // Increased to 2s to reduce load
-const MESSAGE_LIFETIME = 6000; // 6 seconds display time for local echo
+// Constants
+const IDLE_HEARTBEAT = 2000;
+const COMBAT_HEARTBEAT = 400; // Faster polling during combat/setup
+const MESSAGE_LIFETIME = 6000; 
 
 // Balance Constants
 const MAX_HP_PLAYER = 300;
@@ -115,6 +117,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   // System Logs State
   const [systemLogs, setSystemLogs] = useState<string[]>([]);
 
+  // Timer Ref for Dynamic Polling
+  const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const playerName = (nickname || 'USR_01') + localSuffix;
 
   // Reset duplicate detection when nickname changes
@@ -190,7 +195,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const sendHeartbeat = useCallback(async () => {
       // Prevent connection during preload OR if tutorial enemy is still active (Single Player Mode)
       // Also prevent if duplicate name detected
-      if (isPreloading || !isEnemyDefeatedRef.current || isDuplicateNameDetected) return;
+      if (isPreloading || !isEnemyDefeatedRef.current || isDuplicateNameDetected) {
+          // Even if we don't send, we should schedule next check
+          heartbeatTimerRef.current = setTimeout(sendHeartbeat, IDLE_HEARTBEAT);
+          return;
+      }
 
       try {
           const payload = {
@@ -222,7 +231,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                       setIsDuplicateNameDetected(true);
                       setIsOnline(false);
                       setDuplicateNameAlert(true);
-                      return;
+                      return; // Stop heartbeat loop
                   }
 
                   // --- BUFFER LOGIC TO PREVENT FLICKERING ---
@@ -247,23 +256,29 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                   setOtherPlayers(bufferedPlayers);
               }
           } else {
-              // Only go offline if we really can't reach server, but maybe keep ghosts for a bit?
-              // For now, strict offline if heartbeat fails HTTP check.
               setIsOnline(false);
           }
       } catch (e) {
           console.warn("Heartbeat failed", e);
           setIsOnline(false);
+      } finally {
+          // Schedule next heartbeat based on State
+          // If in battle OR invite pending -> FAST POLLING
+          const isHighAlert = battleState?.active || pvpInvite !== null || (myChatMsg?.text && myChatMsg.text.startsWith('[[DUEL_REQ'));
+          const interval = isHighAlert ? COMBAT_HEARTBEAT : IDLE_HEARTBEAT;
+          
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = setTimeout(sendHeartbeat, interval);
       }
-  }, [isPreloading, playerName, myChatMsg, isTeaFollowing, isDuplicateNameDetected]);
+  }, [isPreloading, playerName, myChatMsg, isTeaFollowing, isDuplicateNameDetected, battleState?.active, pvpInvite]);
 
-  // Polling Interval
+  // Initial Start of Polling Loop
   useEffect(() => {
-      // Don't start interval immediately if in tutorial mode, but sendHeartbeat handles the check.
-      sendHeartbeat(); // Initial
-      const interval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
-      return () => clearInterval(interval);
-  }, [sendHeartbeat]);
+      sendHeartbeat();
+      return () => {
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+      };
+  }, []); // Run once on mount, then recursive
 
   // --- INCOMING SIGNAL PROCESSOR (Chat, Invite, Battle) ---
   useEffect(() => {
@@ -271,7 +286,6 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           const myId = sessionIdRef.current;
 
           // 1. Check for Invites (Receiver)
-          // Ensure we don't process invites from ignored IDs (rejected recently OR JUST FOUGHT)
           const invite = processedOtherPlayers.find(p => p.msg === `[[DUEL_REQ::${myId}]]`);
           if (invite && !battleState?.active && !pvpInvite && !ignoredInvitesRef.current.has(invite.id)) {
               setPvpInvite(invite);
@@ -283,6 +297,23 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               // Sender receives Accept -> Sender goes SECOND (turn: enemy)
               startPvPBattle(accept, false); 
               setMyChatMsg(null); // Clear my invite
+          }
+
+          // 2.5 Implicit Accept (Sender Failsafe)
+          // If I am requesting a duel, and the target sends an ACT or HEAL etc., they accepted but I missed the DUEL_ACC msg
+          if (!battleState?.active && myChatMsg?.text.startsWith('[[DUEL_REQ')) {
+              // Extract target ID from my request [[DUEL_REQ::TARGET_ID]]
+              const targetIdMatch = myChatMsg.text.match(/\[\[DUEL_REQ::(.*?)\]\]/);
+              if (targetIdMatch) {
+                  const targetId = targetIdMatch[1];
+                  const opponent = processedOtherPlayers.find(p => p.id === targetId);
+                  
+                  // If opponent is sending battle signals, START BATTLE
+                  if (opponent && opponent.msg && (opponent.msg.startsWith('[[ACT') || opponent.msg.startsWith('[[DUEL_ACC'))) {
+                      startPvPBattle(opponent, false);
+                      setMyChatMsg(null);
+                  }
+              }
           }
 
           // 3. Check for Reject (Sender)
@@ -318,7 +349,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (pvpInvite) {
           const inviter = processedOtherPlayers.find(p => p.id === pvpInvite.id);
           // If inviter is gone OR inviter is no longer sending the specific request msg
-          if (!inviter || inviter.msg !== `[[DUEL_REQ::${sessionIdRef.current}]]`) {
+          // AND inviter is not already in battle (sending ACT)
+          if (!inviter || (inviter.msg !== `[[DUEL_REQ::${sessionIdRef.current}]]` && !inviter.msg?.startsWith('[[ACT'))) {
               setPvpInvite(null); 
           }
       }
@@ -472,7 +504,11 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (nearbyPlayer) {
           const msg = `[[DUEL_REQ::${nearbyPlayer.id}]]`;
           setMyChatMsg({ text: msg, ts: Date.now() });
-          sendHeartbeat(); // Instant Push
+          
+          // Force immediate push to server
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat();
+          
           alert(`Duel request sent to ${nearbyPlayer.nickname}! Waiting for response...`);
       }
   };
@@ -480,7 +516,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const acceptPvP = () => {
       if (pvpInvite) {
           setMyChatMsg({ text: `[[DUEL_ACC::${pvpInvite.id}]]`, ts: Date.now() });
-          sendHeartbeat(); // Instant Push
+          
+          // Force immediate push
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat(); 
           
           // Receiver goes FIRST (Turn = player)
           startPvPBattle(pvpInvite, true);
@@ -493,7 +532,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           // Send Rejection Signal
           const rejMsg = `[[DUEL_REJ::${pvpInvite.id}]]`;
           setMyChatMsg({ text: rejMsg, ts: Date.now() });
-          sendHeartbeat(); // Force push
+          
+          // Force push
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat();
 
           // Ignore this player's invites temporarily to prevent loop
           ignoredInvitesRef.current.add(pvpInvite.id);
@@ -507,6 +549,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   const cancelPvPInvite = () => {
       setMyChatMsg(null);
+      // Force push
+      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       sendHeartbeat();
   };
 
@@ -522,6 +566,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       setPvpTarget(null);
       setBattleState(null);
       setMyChatMsg(null); // Clear any combat signals
+      
+      // Reset polling speed
+      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
       sendHeartbeat();
   };
 
@@ -531,7 +578,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           const uniqueId = Date.now();
           const loseMsg = `[[ACT::LOSE::0::${uniqueId}]]`;
           setMyChatMsg({ text: loseMsg, ts: uniqueId });
-          sendHeartbeat(); // Force push
+          
+          // Force push
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat();
 
           setLocalSuffix(' (战败者)');
           alert("DEFEAT: You have been marked as defeated.");
@@ -866,7 +916,8 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           setMyChatMsg({ text: protocolMsg, ts: uniqueId });
           
           // Force immediate push to server for responsiveness
-          setTimeout(sendHeartbeat, 0); 
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat(); 
 
           if (newEnemyHp <= 0) {
               // If I defeated the enemy locally, send a WIN signal to force their defeat
@@ -874,6 +925,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                   const winId = Date.now() + 10;
                   const winMsg = `[[ACT::WIN::0::${winId}]]`;
                   setMyChatMsg({ text: winMsg, ts: winId });
+                  
+                  // Force push win state
+                  if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
                   sendHeartbeat();
                   
                   setBattleState(prev => prev ? ({ ...prev, showVictory: true }) : null);
@@ -904,6 +958,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           if (enemyElemRef.current) enemyElemRef.current.style.display = 'none';
           
           // Force immediate heartbeat to connect online now that battle is over
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
           sendHeartbeat();
       }
   };
@@ -921,7 +976,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           setMyChatMsg({ text: msg, ts: Date.now() });
           setChatInputValue("");
           setShowChatInput(false);
-          sendHeartbeat(); // Push update immediately
+          
+          // Push update immediately
+          if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
+          sendHeartbeat(); 
       }
   };
 
@@ -1626,4 +1684,4 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   );
 };
 
-export default RPGMap;
+export default React.memo(RPGMap);
