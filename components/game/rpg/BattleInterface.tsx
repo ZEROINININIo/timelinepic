@@ -47,7 +47,7 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
 
   // Render Byaki Avatar
   const ByakiAvatar = () => (
-      <div className="w-10 h-10 lg:w-16 lg:h-16 rounded-full border-2 border-emerald-400 overflow-hidden relative shrink-0 bg-black">
+      <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full border-2 border-emerald-400 overflow-hidden relative shrink-0 bg-black shadow-[0_0_15px_rgba(16,185,129,0.5)]">
           <img src="https://free.picui.cn/free/2025/12/28/69513b509851e.jpg" className="w-full h-full object-cover" alt="Byaki" />
           <div className="absolute inset-0 bg-emerald-500/10 animate-pulse"></div>
       </div>
@@ -333,22 +333,22 @@ const BattleInterface: React.FC<BattleInterfaceProps> = ({ state, onAction, onTu
                 </div>
             </div>
 
-            {/* Tutorial Overlay */}
+            {/* Tutorial Overlay - Centered */}
             {currentTutorial && (
-                <div className="absolute inset-0 z-50 pointer-events-none flex flex-col justify-start lg:justify-end p-4 lg:p-8 pt-16 lg:pt-4">
-                    <div className="pointer-events-auto bg-black/95 border-2 border-emerald-500 p-3 lg:p-6 shadow-2xl flex items-start gap-3 lg:gap-6 animate-slide-in relative">
+                <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center p-4">
+                    <div className="pointer-events-auto w-full max-w-2xl bg-black/95 border-2 border-emerald-500 p-4 lg:p-6 shadow-[0_0_50px_rgba(16,185,129,0.3)] flex items-start gap-3 lg:gap-6 animate-slide-in relative">
                         <ByakiAvatar />
                         <div className="flex-1">
-                            <div className="text-emerald-500 font-bold font-mono text-xs mb-1">Z.Byaki // REMOTE_LINK</div>
-                            <p className="text-emerald-100 text-xs lg:text-base leading-relaxed font-mono">
+                            <div className="text-emerald-500 font-bold font-mono text-xs mb-1 tracking-wider border-b border-emerald-500/30 pb-1 w-max">Z.Byaki // REMOTE_LINK</div>
+                            <p className="text-emerald-100 text-xs lg:text-base leading-relaxed font-mono mt-1">
                                 {currentTutorial.text[language] || currentTutorial.text['en']}
                             </p>
                         </div>
                         <button 
                             onClick={onTutorialNext}
-                            className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 lg:static lg:mt-auto bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 border border-emerald-500/50 px-2 py-1 lg:px-3 lg:py-2 rounded-none transition-colors animate-pulse"
+                            className="absolute bottom-2 right-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 border border-emerald-500/50 px-3 py-2 rounded-none transition-colors animate-pulse"
                         >
-                            <ChevronRight size={16} className="lg:w-5 lg:h-5" />
+                            <ChevronRight size={20} />
                         </button>
                     </div>
                 </div>

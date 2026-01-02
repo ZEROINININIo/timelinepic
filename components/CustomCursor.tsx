@@ -36,10 +36,20 @@ const CustomCursor: React.FC = () => {
       // Throttle the heavy `closest` check to run only every 100ms
       // Visual update of cursor position remains 60fps, but state update is throttled
       if (now - lastCheckTimeRef.current > 100) {
-          const target = e.target as HTMLElement;
-          // Optimization: Simple check for interactive elements
-          const isClickable = target.closest('a, button, input, textarea, select, [role="button"], .cursor-pointer');
-          setIsPointer(!!isClickable);
+          let target = e.target as Element | null;
+
+          // If text node, use parent
+          if (target && target.nodeType === Node.TEXT_NODE && target.parentElement) {
+              target = target.parentElement;
+          }
+
+          // Check for closest method support
+          if (target && typeof target.closest === 'function') {
+              const isClickable = target.closest('a, button, input, textarea, select, [role="button"], .cursor-pointer');
+              setIsPointer(!!isClickable);
+          } else {
+              setIsPointer(false);
+          }
           lastCheckTimeRef.current = now;
       }
     };
