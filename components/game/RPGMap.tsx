@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, FastForward, Activity, Globe, Music, ExternalLink, MessageSquare, Users, Signal, Send, Swords, Skull, Ban } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -76,6 +76,9 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const [pvpInvite, setPvpInvite] = useState<RemotePlayer | null>(null);
   const [pvpTarget, setPvpTarget] = useState<RemotePlayer | null>(null);
   const [localSuffix, setLocalSuffix] = useState<string>('');
+  
+  // Ignore list for rejected invites (temporary)
+  const ignoredInvitesRef = useRef<Set<string>>(new Set());
 
   // Chat State
   const [myChatMsg, setMyChatMsg] = useState<{text: string, ts: number} | null>(null);
@@ -182,20 +185,29 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       if (processedOtherPlayers.length > 0) {
           const myId = sessionIdRef.current;
 
-          // 1. Check for Invites
+          // 1. Check for Invites (Receiver)
+          // Ensure we don't process invites from ignored IDs (rejected recently)
           const invite = processedOtherPlayers.find(p => p.msg === `[[DUEL_REQ::${myId}]]`);
-          if (invite && !battleState?.active && !pvpInvite) {
+          if (invite && !battleState?.active && !pvpInvite && !ignoredInvitesRef.current.has(invite.id)) {
               setPvpInvite(invite);
           }
 
-          // 2. Check for Accept
+          // 2. Check for Accept (Sender)
           const accept = processedOtherPlayers.find(p => p.msg === `[[DUEL_ACC::${myId}]]`);
           if (accept && !battleState?.active) {
               startPvPBattle(accept);
               setMyChatMsg(null); // Clear my invite
           }
 
-          // 3. Check for Combat Actions (If in battle)
+          // 3. Check for Reject (Sender) -> NEW
+          // If I am inviting X, and X sends DUEL_REJ::MyID, clear my request
+          const reject = processedOtherPlayers.find(p => p.msg === `[[DUEL_REJ::${myId}]]`);
+          if (reject && myChatMsg?.text?.includes(reject.id) && myChatMsg.text.startsWith('[[DUEL_REQ')) {
+               setMyChatMsg(null);
+               alert(`${reject.nickname} rejected your duel request.`);
+          }
+
+          // 4. Check for Combat Actions (If in battle)
           if (battleState?.active && pvpTarget) {
               const opponent = processedOtherPlayers.find(p => p.id === pvpTarget.id);
               
@@ -214,7 +226,19 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               }
           }
       }
-  }, [processedOtherPlayers, battleState?.active, pvpInvite, pvpTarget]);
+  }, [processedOtherPlayers, battleState?.active, pvpInvite, pvpTarget, myChatMsg]);
+
+  // --- AUTO CANCEL INVITE IF SENDER STOPS ---
+  // If I have a pending invite from X, but X stops broadcasting the request, close my modal.
+  useEffect(() => {
+      if (pvpInvite) {
+          const inviter = processedOtherPlayers.find(p => p.id === pvpInvite.id);
+          // If inviter is gone OR inviter is no longer sending the specific request msg
+          if (!inviter || inviter.msg !== `[[DUEL_REQ::${sessionIdRef.current}]]`) {
+              setPvpInvite(null); 
+          }
+      }
+  }, [processedOtherPlayers, pvpInvite]);
 
   // --- SYSTEM LOG SIMULATION ---
   useEffect(() => {
@@ -381,7 +405,25 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   };
 
   const rejectPvP = () => {
-      setPvpInvite(null);
+      if (pvpInvite) {
+          // Send Rejection Signal
+          const rejMsg = `[[DUEL_REJ::${pvpInvite.id}]]`;
+          setMyChatMsg({ text: rejMsg, ts: Date.now() });
+          sendHeartbeat(); // Force push
+
+          // Ignore this player's invites temporarily to prevent loop
+          ignoredInvitesRef.current.add(pvpInvite.id);
+          setTimeout(() => {
+              ignoredInvitesRef.current.delete(pvpInvite.id);
+          }, 10000); // 10 seconds ignore
+
+          setPvpInvite(null);
+      }
+  };
+
+  const cancelPvPInvite = () => {
+      setMyChatMsg(null);
+      sendHeartbeat();
   };
 
   const startPvPBattle = (opponent: RemotePlayer) => {
@@ -409,11 +451,24 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
   const handleIncomingBattleAction = (type: string, value: number, actorName: string) => {
       if (!battleState) return;
 
+      // Handle explicit End Game signals first
+      if (type === 'WIN') {
+          // Opponent claims they won -> I lost
+          loseBattle();
+          return;
+      }
+      if (type === 'LOSE') {
+          // Opponent admits defeat -> I win
+          setBattleState(prev => prev ? ({ ...prev, showVictory: true, enemyHp: 0, logs: [`>> ${actorName} SIGNAL LOST`, ...prev.logs].slice(0, 8) }) : null);
+          return;
+      }
+
       setBattleState(prev => {
           if (!prev || prev.playerHp <= 0) return prev;
 
           let newHp = prev.playerHp;
           let newShield = prev.playerShield;
+          let newEnemyHp = prev.enemyHp;
           let log = "";
           let anim: BattleState['animation'] = undefined;
 
@@ -433,15 +488,15 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               log = `>> ${actorName} [ATTACK]: ${value} DMG`;
               anim = 'enemy_attack';
               
-              // Check Defeat
+              // Check Defeat locally (failsafe, though attacker usually sends WIN)
               if (newHp <= 0) setTimeout(loseBattle, 1000);
+
           } else if (type === 'HEAL') {
-              // Opponent healed themselves (Update Enemy HP view)
-              // NOTE: In this simplified peer model, we don't track opponent's exact current HP in `enemyHp` perfectly 
-              // because they track it locally. But we can show the visual.
-              // Actually, `enemyHp` is mostly visual here.
+              // Opponent healed themselves. Update their Phantom HP on my screen.
+              newEnemyHp = Math.min(prev.enemyMaxHp, prev.enemyHp + value);
               log = `>> ${actorName} [REPAIR]: +${value} HP`;
           } else if (type === 'STL') {
+              // Opponent used shield
               log = `>> ${actorName} [STEALTH]: SHIELD UP`;
           }
 
@@ -449,6 +504,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               ...prev,
               playerHp: newHp,
               playerShield: newShield,
+              enemyHp: newEnemyHp,
               logs: [log, ...prev.logs].slice(0, 8),
               animation: anim,
               animationKey: Date.now()
@@ -523,9 +579,15 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
           setTimeout(sendHeartbeat, 0); 
 
           if (newEnemyHp <= 0) {
+              // If I defeated the enemy locally, send a WIN signal to force their defeat
               setTimeout(() => {
+                  const winId = Date.now() + 10;
+                  const winMsg = `[[ACT::WIN::0::${winId}]]`;
+                  setMyChatMsg({ text: winMsg, ts: winId });
+                  sendHeartbeat();
+                  
                   setBattleState(prev => prev ? ({ ...prev, showVictory: true }) : null);
-              }, 800);
+              }, 500);
           }
       } else {
           // PvE Logic (Enemy Turn Automation)
@@ -626,12 +688,16 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
 
   const loseBattle = () => {
       if (pvpTarget) {
-          // PvP Loss
+          // PvP Loss - Send Surrender Signal
+          const uniqueId = Date.now();
+          const loseMsg = `[[ACT::LOSE::0::${uniqueId}]]`;
+          setMyChatMsg({ text: loseMsg, ts: uniqueId });
+          sendHeartbeat(); // Force push
+
           setLocalSuffix(' (战败者)');
           setBattleState(null);
           setPvpTarget(null);
           alert("DEFEAT: You have been marked as defeated.");
-          setMyChatMsg(null);
       } else {
           // PvE Loss
           setBattleState(null);
@@ -1049,6 +1115,18 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                 <Signal size={10} className={`animate-pulse ${isOnline ? 'text-green-500' : 'text-red-500'}`} />
             </button>
         </div>
+
+        {/* Sender Cancel PvP Button */}
+        {myChatMsg?.text.startsWith('[[DUEL_REQ') && (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[160] animate-slide-in">
+                <button 
+                    onClick={cancelPvPInvite}
+                    className="bg-red-950/90 border-2 border-red-500 text-red-100 font-bold px-4 py-2 flex items-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:bg-red-900 transition-colors uppercase text-xs"
+                >
+                    <Ban size={14} /> CANCEL INVITE
+                </button>
+            </div>
+        )}
 
         {/* PvP Invite Modal */}
         {pvpInvite && (
