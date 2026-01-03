@@ -12,7 +12,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'npc', 
         label: 'GUIDE', 
         color: 'text-emerald-300',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957ea205a138.jpg',
+        imageUrl: 'https://free.picui.cn/free/2025/12/28/69513b509851e.jpg',
         description: {
             'zh-CN': '【系统引导】\n\n1. 操作：使用 WASD / 方向键 或 屏幕摇杆 移动，接近物体按 [SPACE] 或点击按钮交互。\n\n2. 坐标：当前位于「泛宇」(Pan-Universe)。\n\n3. 说明：这里既非「现世」，亦非「主宇」。它是一个独立于时间轴之外的数据切片。\n\n要想知道泛宇究竟是什么... 请持续关注后续的剧情更新。',
             'zh-TW': '【系統引導】\n\n1. 操作：使用 WASD / 方向鍵 或 螢幕搖桿 移動，接近物體按 [SPACE] 或點擊按鈕交互。\n\n2. 坐標：當前位於「泛宇」(Pan-Universe)。\n\n3. 說明：這裡既非「現世」，亦非「主宇」。它是一個獨立於時間軸之外的數據切片。\n\n要想知道泛宇究竟是什麼... 請持續關注後續的劇情更新。',
@@ -20,7 +20,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Center Pedestal - LOGO (M-02)
+    // Center Pedestal - LOGO (M-02) -> Swapped to take M-03's old image
     { 
         id: 'exhibit-logo', 
         x: 480, y: 350, 
@@ -28,7 +28,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'NOVA_CORE', 
         color: 'text-ash-light',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4ba5f8.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e22304e.png',
         description: {
             'zh-CN': 'Nova Labs 标识 ',
             'zh-TW': 'Nova Labs 標識 ',
@@ -36,7 +36,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
     
-    // Top Right Corner - Zeri Maid (M-03)
+    // Top Right Corner - Zeri Maid (M-03) -> Swapped to take M-01's old image
     { 
         id: 'exhibit-zeri', 
         x: 850, y: 100, 
@@ -44,7 +44,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ENCRYPTED_FILE', 
         color: 'text-fuchsia-400',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957ea205a138.jpg',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4ba5f8.png',
         description: {
             'zh-CN': '黑历史数据 // 绝对机密 、零点最终还是找回了这张图片。',
             'zh-TW': '黑歷史數據 // 絕對機密 ',
@@ -52,7 +52,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Top Left - Byaki Avatar (M-01)
+    // Top Left - Byaki Avatar (M-01) -> Swapped to take M-02's old image
     { 
         id: 'exhibit-byaki', 
         x: 280, y: 150, 
@@ -60,7 +60,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'BYAKI_TERM', 
         color: 'text-emerald-400',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e22304e.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957ea205a138.jpg',
         description: {
             'zh-CN': '白栖的终端头像数据 // 记录于档案建立之初。\n\n> 备注：总觉得左边的这堵墙后面...好像有谁在喝茶的声音？',
             'zh-TW': '白栖的終端頭像數據 // 記錄於檔案建立之初。\n\n> 備註：總覺得左邊的這堵牆後面...好像有誰在喝茶的聲音？',
@@ -76,7 +76,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_STD', 
         color: 'text-blue-400',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4c8380.png',
+        imageUrl: 'https://cdn.picui.cn/vip/2026/01/03/695888e768b5d.jpg',
         description: {
             'zh-CN': '零点 // 标准记录影像。',
             'zh-TW': '零點 // 標準記錄影像。',
