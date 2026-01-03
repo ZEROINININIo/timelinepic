@@ -72,8 +72,7 @@ const App: React.FC = () => {
 
   // Audio Sources
   const audioSources = [
-    "https://lz.qaiu.top/parser?url=https://sbcnm.lanzoum.com/i09IZ3effnne",
-    "https://cik07-cos.7moor-fs2.com/im/4d2c3f00-7d4c-11e5-af15-41bf63ae4ea0/fd991fcc1f737774/main.mp3"
+    "https://lz.qaiu.top/parser?url=https://sbcnm.lanzoum.com/ilf0y3f5dxmh"
   ];
 
   // Cleanup Loader
@@ -180,7 +179,7 @@ const App: React.FC = () => {
                       volume={bgmVolume}
                       onVolumeChange={setBgmVolume}
                       audioSources={audioSources}
-                      trackTitle="STATIC_MENU"
+                      trackTitle="Abstract Glass Menu"
                       trackComposer="NOVA_OST"
                   />
               </div>
