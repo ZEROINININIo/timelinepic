@@ -349,6 +349,21 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
+    // Link: Pyo Terminal
+    { 
+        id: 'link-pyo-term', 
+        x: 80, y: 580, 
+        width: 40, height: 40, 
+        type: 'terminal', 
+        label: 'PYO_TERM', 
+        color: 'text-indigo-400',
+        description: {
+            'zh-CN': '【普忧终端】\n\n跳转至: pli.zeroxv.cn\n\n[点击确认]',
+            'zh-TW': '【普憂終端】\n\n跳轉至: pli.zeroxv.cn\n\n[點擊確認]',
+            'en': '[PYO TERMINAL]\n\nWarp to: pli.zeroxv.cn\n\n[CLICK TO CONFIRM]'
+        }
+    },
+
     // --- WALLS ---
 
     // Top and Bottom Outer Boundaries
@@ -385,7 +400,7 @@ export const MAP_OBJECTS: RPGObject[] = [
     { id: 'w_secret_div_2', x: 130, y: 250, width: 70, height: 50, type: 'wall' },
 
     // Bottom of Star Map Pavilion
-    { id: 'w_star_bottom', x: 0, y: 600, width: 200, height: 50, type: 'wall' },
+    { id: 'w_star_bottom', x: 0, y: 650, width: 200, height: 50, type: 'wall' },
 
     // Main Hall Right Wall
     { id: 'w_right_top', x: 950, y: 0, width: 50, height: 350, type: 'wall' },

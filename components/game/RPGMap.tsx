@@ -938,6 +938,10 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
               setPendingLink({ url: 'https://bf.zeroxv.cn', title: 'MAIN_SITE' });
           } else if (activeObj.id === 'link-ost') {
               setPendingLink({ url: 'https://ost.zeroxv.cn', title: 'OST_ROOM' });
+          } else if (activeObj.id === 'link-pyo-term') {
+              // Construct URL with nickname
+              const targetUrl = `https://pli.zeroxv.cn/?nickname=${encodeURIComponent(nickname || '')}`;
+              setPendingLink({ url: targetUrl, title: 'PYO_TERMINAL' });
           }
       } else if (activeObj.type === 'npc') {
           if (activeObj.id === 'npc-tea') {
@@ -954,7 +958,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
       } else {
           setViewingExhibit(activeObj);
       }
-  }, [activeObj, teaStage, onOpenGuestbook]);
+  }, [activeObj, teaStage, onOpenGuestbook, nickname]); // Added nickname dependency
 
   // Interaction Key Listener
   useEffect(() => {
