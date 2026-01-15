@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { RPGObject } from '../../../types';
 import { MAP_WIDTH, MAP_HEIGHT } from './constants';
-import { Globe, Music } from 'lucide-react';
+import { Globe, Music, Star } from 'lucide-react';
 
 interface MapRendererProps {
   objects: RPGObject[];

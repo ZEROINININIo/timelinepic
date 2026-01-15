@@ -157,6 +157,7 @@ export interface RPGObject {
   // Gallery Content
   imageUrl?: string;
   description?: Record<Language, string>;
+  artist?: string;
 }
 
 // --- Multiplayer Types ---

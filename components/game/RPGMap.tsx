@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RPGPosition, RPGObject, Language, RemotePlayer } from '../../types';
-import { Maximize, X, MessageCircle, AlertTriangle, Crown } from 'lucide-react';
+import { Maximize, X, MessageCircle, AlertTriangle, Crown, Star } from 'lucide-react';
 import VirtualJoystick from './VirtualJoystick';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_SIZE, SPEED, ENEMY_SPEED } from './rpg/constants';
 import { BattleState } from './rpg/types';
@@ -1349,6 +1349,31 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
                     {viewingExhibit.imageUrl && (
                         <div className="w-full md:w-2/3 bg-black flex items-center justify-center border-b md:border-b-0 md:border-r border-ash-dark p-4 relative group">
                             <div className="absolute inset-0 bg-grid-hard opacity-20"></div>
+                            
+                            {/* Artist Floating Star Card - MOVED HERE */}
+                            {viewingExhibit.artist && (
+                                <div className="absolute top-4 left-4 z-20 animate-fade-in" style={{ animationDuration: '0.8s' }}>
+                                    <div className="relative group/artist cursor-default">
+                                        {/* Card Body */}
+                                        <div className="bg-black/60 backdrop-blur-md border border-amber-500/30 px-3 py-1.5 rounded-sm shadow-[0_0_15px_rgba(245,158,11,0.2)] flex items-center gap-3 hover:bg-black/80 transition-colors">
+                                            {/* Static Star with subtle glow */}
+                                            <div className="relative flex items-center justify-center w-4 h-4">
+                                                <Star size={12} className="text-amber-400 fill-current relative z-10" />
+                                                <div className="absolute inset-0 bg-amber-500/20 blur-sm animate-pulse"></div>
+                                            </div>
+                                            
+                                            {/* Text Content */}
+                                            <div className="flex flex-col text-left">
+                                                <span className="text-[8px] font-mono text-amber-500/60 uppercase tracking-wider leading-none mb-0.5">ARTIST / FX</span>
+                                                <span className="text-[10px] font-bold text-amber-100 font-mono tracking-wide shadow-black drop-shadow-md whitespace-nowrap">
+                                                    {viewingExhibit.artist}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <img src={viewingExhibit.imageUrl} alt={viewingExhibit.label} className="max-w-full max-h-[60vh] object-contain shadow-2xl relative z-10" />
                             <button onClick={() => window.open(viewingExhibit.imageUrl, '_blank')} className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/20">
                                 <Maximize size={16} />
@@ -1371,8 +1396,7 @@ const RPGMap: React.FC<RPGMapProps> = ({ language, onNavigate, nickname, onOpenG
             </div>
         )}
 
-        {/* Chat Toggle Button (Mobile/Tablet Only for easier access) handled in GameUI via prop if needed, 
-            but kept here if logic requires it. Actually moved to GameUI. */}
+        {/* Chat Toggle Button (Mobile/Tablet Only for easier access) */}
 
         {!battleState?.active && !viewingExhibit && !isPreloading && !pendingLink && !showChatInput && !showPlayerList && (
             <VirtualJoystick 

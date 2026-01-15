@@ -20,7 +20,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Center Pedestal - LOGO (M-02) -> Swapped to take M-03's old image
+    // Center Pedestal - LOGO (M-02)
     { 
         id: 'exhibit-logo', 
         x: 480, y: 350, 
@@ -36,7 +36,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
     
-    // Top Right Corner - Zeri Maid (M-03) -> Swapped to take M-01's old image
+    // Top Right Corner - Zeri Maid (M-03)
     { 
         id: 'exhibit-zeri', 
         x: 850, y: 100, 
@@ -52,7 +52,7 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // Top Left - Byaki Avatar (M-01) -> Swapped to take M-02's old image
+    // Top Left - Byaki Avatar (M-01)
     { 
         id: 'exhibit-byaki', 
         x: 280, y: 150, 
@@ -92,11 +92,12 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'MEM_WATCH', 
         color: 'text-ash-gray',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e4c8380.png',
+        artist: 'ZEROXV',
+        imageUrl: 'https://cdn.imgos.cn/vip/2026/01/15/6968fbda4c7c1.jpg',
         description: {
-            'zh-CN': '暮雨的怀表 // “宁静地思考”。',
-            'zh-TW': '暮雨的懷錶 // “寧靜地思考”。',
-            'en': 'Dusk\'s Pocket Watch // "Peaceful Thinking".'
+            'zh-CN': '暮雨的怀表 // “宁静地思考”。\n\n后期特效：ZEROXV',
+            'zh-TW': '暮雨的懷錶 // “寧靜地思考”。\n\n後期特效：ZEROXV',
+            'en': 'Dusk\'s Pocket Watch // "Peaceful Thinking".\n\nPost-FX: ZEROXV'
         }
     },
 
@@ -118,10 +119,26 @@ export const MAP_OBJECTS: RPGObject[] = [
         }
     },
 
-    // [DELETED] terminal-guestbook was here
+    // O-12 (Placed next to O-01)
+    { 
+        id: 'exhibit-zelo-pyo-origin', 
+        x: 1550, y: 380, 
+        width: 40, height: 40, 
+        type: 'exhibit', 
+        label: 'ZELO_PYO_ORIG', 
+        color: 'text-amber-200',
+        artist: '月见里幽幽子',
+        imageUrl: 'https://cdn.imgos.cn/vip/2026/01/02/6957e8e31300d.png',
+        description: {
+            'zh-CN': '泽洛和普忧 (Origin) // 珍贵的原版记录。\n\n画师：月见里幽幽子',
+            'zh-TW': '澤洛和普憂 (Origin) // 珍貴的原版記錄。\n\n畫師：月見里幽幽子',
+            'en': 'Zelo & Pyo (Origin) // Precious original record.\n\nArtist: Tsukimisato Yuyuko'
+        }
+    },
 
     // -- Top Row --
 
+    // O-02
     { 
         id: 'exhibit-zelo-pyo', 
         x: 1200, y: 180, 
@@ -129,14 +146,15 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZELO_PYO', 
         color: 'text-amber-200',
-        imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e31300d.png',
+        artist: '月见里幽幽子',
+        imageUrl: 'https://cdn.imgos.cn/vip/2026/01/15/6968f70794d70.jpg',
         description: {
-            'zh-CN': '泽洛和普忧 // 温馨的日常一刻。',
-            'zh-TW': '澤洛和普憂 // 溫馨的日常一刻。',
-            'en': 'Zelo & Pyo // A heartwarming daily moment.'
+            'zh-CN': '泽洛和普忧 // 温馨的日常一刻。\n\n画师：月见里幽幽子',
+            'zh-TW': '澤洛和普憂 // 溫馨的日常一刻。\n\n畫師：月見里幽幽子',
+            'en': 'Zelo & Pyo // A heartwarming daily moment.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
-    // New Exhibit: Fumofumo Zelo (Official) (O-03)
+    // O-03
     { 
         id: 'exhibit-fumofumo-zelo', 
         x: 1320, y: 180, 
@@ -151,6 +169,7 @@ export const MAP_OBJECTS: RPGObject[] = [
             'en': 'Fumofumo Zelo // Fluffy cuteness.'
         }
     },
+    // O-04
     { 
         id: 'exhibit-stars-after', 
         x: 1440, y: 180, 
@@ -158,13 +177,15 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'STAR_VIS', 
         color: 'text-amber-200',
+        artist: '月见里幽幽子',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e288206.jpg',
         description: {
-            'zh-CN': '来自星星 (After Ver.) // 仰望星空。',
-            'zh-TW': '來自星星 (After Ver.) // 仰望星空。',
-            'en': 'From Stars (After Ver.) // Looking up at the starry sky.'
+            'zh-CN': '来自星星 (After Ver.) // 仰望星空。\n\n画师：月见里幽幽子',
+            'zh-TW': '來自星星 (After Ver.) // 仰望星空。\n\n畫師：月見里幽幽子',
+            'en': 'From Stars (After Ver.) // Looking up at the starry sky.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
+    // O-05
     { 
         id: 'exhibit-zelo-after', 
         x: 1560, y: 180, 
@@ -172,13 +193,15 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZELO_AFT', 
         color: 'text-amber-200',
+        artist: '月见里幽幽子',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e31285b.jpg',
         description: {
-            'zh-CN': 'After 泽洛 // 时间线变动后的记录。',
-            'zh-TW': 'After 澤洛 // 時間線變動後的記錄。',
-            'en': 'After Zelo // Record after timeline divergence.'
+            'zh-CN': 'After 泽洛 // 时间线变动后的记录。\n\n画师：月见里幽幽子',
+            'zh-TW': 'After 澤洛 // 時間線變動後的記錄。\n\n畫師：月見里幽幽子',
+            'en': 'After Zelo // Record after timeline divergence.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
+    // O-06
     { 
         id: 'exhibit-point-main', 
         x: 1680, y: 180, 
@@ -186,16 +209,18 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'POINT_M', 
         color: 'text-blue-300',
+        artist: '月见里幽幽子',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e437a08.png',
         description: {
-            'zh-CN': '零点 (Main Ver.) // 初始设定。',
-            'zh-TW': '零點 (Main Ver.) // 初始設定。',
-            'en': 'Point (Main Ver.) // Initial setting.'
+            'zh-CN': '零点 (Main Ver.) // 初始设定。\n\n画师：月见里幽幽子',
+            'zh-TW': '零點 (Main Ver.) // 初始設定。\n\n畫師：月見里幽幽子',
+            'en': 'Point (Main Ver.) // Initial setting.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
 
     // -- Bottom Row --
 
+    // O-07
     { 
         id: 'exhibit-group-zelo', 
         x: 1200, y: 600, 
@@ -203,11 +228,12 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'GRP_ZELO', 
         color: 'text-amber-300',
+        artist: '月见里幽幽子',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e34fb61.jpg',
         description: {
-            'zh-CN': '群友泽洛 (After Ver.) // 社区创作。',
-            'zh-TW': '群友澤洛 (After Ver.) // 社區創作。',
-            'en': 'Group Friend Zelo (After Ver.) // Community creation.'
+            'zh-CN': '群友泽洛 (After Ver.) // 社区创作。\n\n画师：月见里幽幽子',
+            'zh-TW': '群友澤洛 (After Ver.) // 社區創作。\n\n畫師：月見里幽幽子',
+            'en': 'Group Friend Zelo (After Ver.) // Community creation.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
     { 
@@ -238,6 +264,7 @@ export const MAP_OBJECTS: RPGObject[] = [
             'en': 'Zelo Craft // Special thanks to uuz.'
         }
     },
+    // O-10
     { 
         id: 'exhibit-furry-zelo-sec', 
         x: 1560, y: 600, 
@@ -245,11 +272,12 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'FUR_SEC', 
         color: 'text-amber-600',
+        artist: '月见里幽幽子',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8e2e15a5.jpg',
         description: {
-            'zh-CN': 'Furry 泽洛 (二次设定) // 另一种可能。',
-            'zh-TW': 'Furry 澤洛 (二次設定) // 另一種可能。',
-            'en': 'Furry Zelo (Secondary) // Another possibility.'
+            'zh-CN': 'Furry 泽洛 (二次设定) // 另一种可能。\n\n画师：月见里幽幽子',
+            'zh-TW': 'Furry 澤洛 (二次設定) // 另一種可能。\n\n畫師：月見里幽幽子',
+            'en': 'Furry Zelo (Secondary) // Another possibility.\n\nArtist: Tsukimisato Yuyuko'
         }
     },
     { 
@@ -293,11 +321,12 @@ export const MAP_OBJECTS: RPGObject[] = [
         type: 'exhibit', 
         label: 'ZERI_MOR', 
         color: 'text-pink-300',
+        artist: 'mor',
         imageUrl: 'https://cdn.picui.cn/vip/2026/01/02/6957e8ff564b6.jpg',
         description: {
-            'zh-CN': '芷漓 (By mor) // 非官方社区图集。',
-            'zh-TW': '芷漓 (By mor) // 非官方社區圖集。',
-            'en': 'Zeri (By mor) // Unofficial Community Gallery.'
+            'zh-CN': '芷漓 (mor) // 非官方社区图集。',
+            'zh-TW': '芷漓 (mor) // 非官方社區圖集。',
+            'en': 'Zeri (mor) // Unofficial Community Gallery.'
         }
     },
 
